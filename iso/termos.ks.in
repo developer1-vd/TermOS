@@ -67,6 +67,11 @@ libvirt-daemon-config-network
 # Flatpak (Flathub is added in %post).
 flatpak
 
+# Boot splash.
+plymouth
+plymouth-plugin-script
+plymouth-plugin-label
+
 # termos-run / termos-fetch helpers.
 file
 openssh-clients
@@ -91,6 +96,16 @@ systemctl enable libvirtd.socket 2>/dev/null || true
 # Flathub, for apps that aren't packaged for Fedora.
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
     || echo "TermOS: couldn't add Flathub; add it later with flatpak remote-add"
+
+# TermOS boot splash. The initramfs is rebuilt afterwards (by lorax for the
+# live ISO, and by the installer for installed systems), so it picks this up.
+plymouth-set-default-theme termos || echo "TermOS: couldn't set the Plymouth theme"
+
+# TermOS wallpaper on the lock screen too. Fedora's KDE profile also sets a
+# lock screen wallpaper, so point that at TermOS's as well.
+for f in /usr/share/kde-settings/kde-profile/default/xdg/kscreenlockerrc; do
+    [ -f "$f" ] && sed -i 's|wallpapers/Fedora/|wallpapers/TermOS/|g' "$f"
+done
 
 # Use the TermOS fastfetch config for every user.
 mkdir -p /etc/xdg/fastfetch

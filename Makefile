@@ -2,6 +2,8 @@
 #
 #   make install       install TermOS tools (PREFIX=/usr/local by default)
 #   make uninstall     remove them
+#   make install-splash  install the TermOS boot splash and make it the default (root)
+#   make art           regenerate the wallpaper and boot splash images
 #   make iso           build the live ISO (needs root on Fedora; see iso/build-iso.sh)
 #   make iso-container build the live ISO inside a Fedora container
 #   make ks            only generate build/termos.ks
@@ -12,13 +14,14 @@ PREFIX  ?= /usr/local
 DESTDIR ?=
 BINDIR   = $(DESTDIR)$(PREFIX)/bin
 SHAREDIR = $(DESTDIR)$(PREFIX)/share/termos
+WALLDIR  = $(DESTDIR)$(PREFIX)/share/wallpapers/TermOS
 
 SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh
 
-.PHONY: all install uninstall iso iso-container ks lint clean
+.PHONY: all install uninstall install-splash art iso iso-container ks lint clean
 
 all:
-	@sed -n '3,9s/^# \{0,1\}//p' Makefile
+	@sed -n '3,11s/^# \{0,1\}//p' Makefile
 
 install:
 	install -Dm755 bin/termos-fetch               $(BINDIR)/termos-fetch
@@ -27,10 +30,20 @@ install:
 	install -Dm644 branding/logo-termite.txt      $(SHAREDIR)/logo-termite.txt
 	install -Dm644 config/fastfetch/config.jsonc  $(SHAREDIR)/fastfetch/config.jsonc
 	install -Dm644 config/neofetch/config.conf    $(SHAREDIR)/neofetch/config.conf
+	install -Dm644 branding/wallpaper/metadata.json $(WALLDIR)/metadata.json
+	install -Dm644 -t $(WALLDIR)/contents           branding/wallpaper/contents/screenshot.png
+	install -Dm644 -t $(WALLDIR)/contents/images    branding/wallpaper/contents/images/*.png
+
+install-splash:
+	install -Dm644 -t $(DESTDIR)/usr/share/plymouth/themes/termos branding/plymouth/termos/*
+	plymouth-set-default-theme -R termos
+
+art:
+	python3 branding/make-art.py
 
 uninstall:
 	rm -f  $(BINDIR)/termos-fetch $(BINDIR)/termos-run
-	rm -rf $(SHAREDIR)
+	rm -rf $(SHAREDIR) $(WALLDIR)
 
 iso:
 	sudo iso/build-iso.sh

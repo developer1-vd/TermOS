@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=TermOS
+Description=TermOS boot splash: Matrix-style digital rain behind the TermOS logo
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/termos
+ScriptFile=/usr/share/plymouth/themes/termos/termos.script

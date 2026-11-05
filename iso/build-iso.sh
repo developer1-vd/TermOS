@@ -34,16 +34,30 @@ darling="${TERMOS_DARLING:-1}"
 [[ "$release" =~ ^[0-9]+$ ]] || die "TERMOS_RELEASE must be a Fedora release number, got '$release'"
 
 # Append a heredoc to the kickstart that recreates $src at $dest on the image.
+# Text files are copied as-is; binary files (images) are base64-encoded.
 embed() {
     local src="$1" dest="$2" mode="$3" tag="TERMOS_EOF_$RANDOM$RANDOM"
     grep -q "^$tag\$" "$src" && die "heredoc tag collision in $src"
     {
         echo "mkdir -p '$(dirname "$dest")'"
-        echo "cat > '$dest' <<'$tag'"
-        cat "$src"
+        if grep -qI . "$src"; then
+            echo "cat > '$dest' <<'$tag'"
+            cat "$src"
+        else
+            echo "base64 -d > '$dest' <<'$tag'"
+            base64 -w 76 "$src"
+        fi
         echo "$tag"
         echo "chmod $mode '$dest'"
     } >> "$ks"
+}
+
+# Embed every file under $1 at the same relative path under $2.
+embed_tree() {
+    local src_dir="$1" dest_dir="$2" f
+    while IFS= read -r f; do
+        embed "$src_dir/$f" "$dest_dir/$f" 0644
+    done < <(cd "$src_dir" && find . -type f ! -name '*.py' -printf '%P\n' | sort)
 }
 
 write_ks() {
@@ -66,6 +80,12 @@ write_ks() {
     embed "$repo/branding/logo-termite.txt"         /usr/share/termos/logo-termite.txt 0644
     embed "$repo/config/fastfetch/config.jsonc"     /usr/share/termos/fastfetch/config.jsonc 0644
     embed "$repo/config/neofetch/config.conf"       /usr/share/termos/neofetch/config.conf 0644
+    # Wallpaper (desktop + phone sizes), boot splash and KDE defaults.
+    embed_tree "$repo/branding/wallpaper"               /usr/share/wallpapers/TermOS
+    embed_tree "$repo/branding/plymouth/termos"         /usr/share/plymouth/themes/termos
+    embed "$repo/branding/kde/zz-termos-wallpaper.js" \
+        /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/zz-termos-wallpaper.js 0644
+    embed "$repo/branding/kde/kscreenlockerrc"      /etc/xdg/kscreenlockerrc 0644
     echo "%end" >> "$ks"
     ks="$saved"
     awk -v f="$files_ks" '
