@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Install TermOS
+GenericName=System Installer
+Comment=Install TermOS to this computer
+Exec=sh -c "sudo -n -E /usr/bin/calamares || kdesu /usr/bin/calamares"
+Icon=/usr/share/calamares/branding/termos/logo.png
+Terminal=false
+Categories=System;
+Keywords=install;installer;calamares;

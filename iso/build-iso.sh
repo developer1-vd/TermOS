@@ -86,6 +86,16 @@ write_ks() {
     embed "$repo/branding/kde/zz-termos-wallpaper.js" \
         /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/zz-termos-wallpaper.js 0644
     embed "$repo/branding/kde/kscreenlockerrc"      /etc/xdg/kscreenlockerrc 0644
+    # Calamares installer: TermOS settings, module configs and branding.
+    embed "$repo/branding/calamares/settings.conf"  /etc/calamares/settings.conf 0644
+    embed_tree "$repo/branding/calamares/modules"       /etc/calamares/modules
+    embed_tree "$repo/branding/calamares/branding/termos" /usr/share/calamares/branding/termos
+    embed "$repo/branding/calamares/termos-install.desktop" \
+        /usr/share/applications/termos-install.desktop 0644
+    embed "$repo/branding/calamares/termos-live-desktop.sh" \
+        /usr/libexec/termos/termos-live-desktop.sh 0755
+    embed "$repo/branding/calamares/termos-live-desktop.desktop" \
+        /etc/xdg/autostart/termos-live-desktop.desktop 0644
     echo "%end" >> "$ks"
     ks="$saved"
     awk -v f="$files_ks" '

@@ -151,7 +151,28 @@ Then choose **TermOS** in System Settings → Wallpaper.
 
 TermOS builds a bootable live ISO from Fedora with a kickstart file
 (`iso/termos.ks.in`) and Fedora's `livemedia-creator`. The live session boots
-into **KDE Plasma**, and the installer is included so you can install TermOS to disk.
+into **KDE Plasma**. To install TermOS to disk, double-click **Install TermOS** on
+the desktop.
+
+## The installer
+
+TermOS installs with [Calamares](https://calamares.io/) instead of Fedora's
+Anaconda. Calamares walks you through language, keyboard, disk partitioning
+(including encryption) and creating your user, then copies the live system to
+disk. While it installs, it shows a TermOS slideshow.
+
+The setup lives in `branding/calamares/`:
+
+```
+settings.conf          the install steps (based on Fedora's own Calamares setup)
+modules/welcome.conf   requirements check: 25 GB disk, 2 GB RAM
+modules/packages.conf  removes live-only packages after installing
+branding/termos/       TermOS logo, colours and slideshow
+```
+
+Anything not set there uses the defaults from Fedora's Calamares package. The
+installed system keeps the TermOS boot splash, wallpaper and preinstalled apps,
+and the temporary live user isn't copied to it.
 
 Preinstalled on the ISO:
 
@@ -166,6 +187,7 @@ Preinstalled on the ISO:
 | Everything else | Flatpak with Flathub                                               |
 | TermOS          | `termos-fetch`, `termos-run`, fastfetch (Matrix logo) and fortune  |
 | Look            | The TermOS wallpaper and boot splash                               |
+| Installer       | Calamares, with TermOS branding                                    |
 
 Darling is built by the community, not Fedora. If it can't be installed when the
 ISO is built, the build carries on without it and prints a warning. To leave it
@@ -257,7 +279,8 @@ config/neofetch/config.conf    neofetch config using the Matrix logo
 branding/wallpaper/            KDE wallpaper package (desktop + phone sizes)
 branding/plymouth/termos/      Plymouth boot splash theme
 branding/kde/                  KDE defaults (wallpaper, lock screen)
-branding/make-art.py           generates the wallpaper and splash images
+branding/calamares/            Calamares installer settings and branding
+branding/make-art.py           generates the wallpaper, splash and installer images
 iso/termos.ks.in               kickstart template for the live ISO
 iso/build-iso.sh               ISO builder
 flake.nix                      Nix package, apps and dev shell
