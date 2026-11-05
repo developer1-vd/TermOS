@@ -3,6 +3,7 @@
 #   make install       install TermOS tools (PREFIX=/usr/local by default)
 #   make uninstall     remove them
 #   make install-splash  install the TermOS boot splash and make it the default (root)
+#   make install-grub    install the TermOS GRUB theme and regenerate grub.cfg (root)
 #   make art           regenerate the wallpaper and boot splash images
 #   make iso           build the live ISO (needs root on Fedora; see iso/build-iso.sh)
 #   make iso-container build the live ISO inside a Fedora container
@@ -18,10 +19,10 @@ WALLDIR  = $(DESTDIR)$(PREFIX)/share/wallpapers/TermOS
 
 SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh
 
-.PHONY: all install uninstall install-splash art iso iso-container ks lint clean
+.PHONY: all install uninstall install-splash install-grub art iso iso-container ks lint clean
 
 all:
-	@sed -n '3,11s/^# \{0,1\}//p' Makefile
+	@sed -n '3,12s/^# \{0,1\}//p' Makefile
 
 install:
 	install -Dm755 bin/termos-fetch               $(BINDIR)/termos-fetch
@@ -37,6 +38,9 @@ install:
 install-splash:
 	install -Dm644 -t $(DESTDIR)/usr/share/plymouth/themes/termos branding/plymouth/termos/*
 	plymouth-set-default-theme -R termos
+
+install-grub:
+	branding/grub/install-grub-theme.sh branding/grub/termos --mkconfig
 
 art:
 	python3 branding/make-art.py

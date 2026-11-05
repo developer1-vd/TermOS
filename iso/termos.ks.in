@@ -70,6 +70,10 @@ libvirt-daemon-config-network
 # Flatpak (Flathub is added in %post).
 flatpak
 
+# GRUB theme: grub2-mkfont makes its fonts from DejaVu Sans Mono.
+grub2-tools-extra
+dejavu-sans-mono-fonts
+
 # Boot splash.
 plymouth
 plymouth-plugin-script
@@ -109,6 +113,11 @@ fi
 # TermOS boot splash. The initramfs is rebuilt afterwards (by lorax for the
 # live ISO, and by the installer for installed systems), so it picks this up.
 plymouth-set-default-theme termos || echo "TermOS: couldn't set the Plymouth theme"
+
+# TermOS GRUB theme. Calamares regenerates grub.cfg when it installs the
+# bootloader, so this only needs to set /etc/default/grub and copy the theme.
+/usr/libexec/termos/install-grub-theme.sh /usr/share/termos/grub/termos \
+    || echo "TermOS: couldn't install the GRUB theme"
 
 # TermOS wallpaper on the lock screen too. Fedora's KDE profile also sets a
 # lock screen wallpaper, so point that at TermOS's as well.

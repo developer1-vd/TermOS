@@ -1,0 +1,72 @@
+# TermOS GRUB theme: Matrix rain behind the TermOS logo, green-on-black menu.
+# Images come from branding/make-art.py. Fonts (*.pf2) are generated from
+# DejaVu Sans Mono with grub2-mkfont when the theme is installed.
+
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#020804"
+terminal-font: "DejaVu Sans Mono Regular 16"
+terminal-left: "10%"
+terminal-top: "20%"
+terminal-width: "80%"
+terminal-height: "65%"
+terminal-border: "0"
+
++ image {
+    left = 50%-253
+    top = 5%
+    file = "logo.png"
+}
+
++ boot_menu {
+    left = 22%
+    top = 32%
+    width = 56%
+    height = 42%
+    menu_pixmap_style = "menu_*.png"
+    item_font = "DejaVu Sans Mono Regular 16"
+    item_color = "#00AA44"
+    selected_item_font = "DejaVu Sans Mono Bold 16"
+    selected_item_color = "#020804"
+    selected_item_pixmap_style = "select_*.png"
+    item_height = 34
+    item_padding = 12
+    item_spacing = 6
+    icon_width = 0
+    icon_height = 0
+    item_icon_space = 0
+    scrollbar = false
+}
+
++ progress_bar {
+    id = "__timeout__"
+    left = 22%
+    top = 76%
+    width = 56%
+    height = 4
+    fg_color = "#00FF66"
+    bg_color = "#004618"
+    border_color = "#004618"
+    show_text = false
+}
+
++ label {
+    id = "__timeout__"
+    left = 22%
+    top = 80%
+    width = 56%
+    align = "center"
+    color = "#00AA44"
+    font = "DejaVu Sans Mono Regular 14"
+    text = "Booting in %d seconds"
+}
+
++ label {
+    left = 0
+    top = 92%
+    width = 100%
+    align = "center"
+    color = "#00AA44"
+    font = "DejaVu Sans Mono Regular 14"
+    text = "Enter: boot    Up/Down: select    e: edit    c: command line"
+}

@@ -86,6 +86,10 @@ write_ks() {
     embed "$repo/branding/kde/zz-termos-wallpaper.js" \
         /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/zz-termos-wallpaper.js 0644
     embed "$repo/branding/kde/kscreenlockerrc"      /etc/xdg/kscreenlockerrc 0644
+    # GRUB theme (turned on by the template's %post).
+    embed_tree "$repo/branding/grub/termos"             /usr/share/termos/grub/termos
+    embed "$repo/branding/grub/install-grub-theme.sh" \
+        /usr/libexec/termos/install-grub-theme.sh 0755
     # Calamares installer: TermOS settings, module configs and branding.
     embed "$repo/branding/calamares/settings.conf"  /etc/calamares/settings.conf 0644
     embed_tree "$repo/branding/calamares/modules"       /etc/calamares/modules

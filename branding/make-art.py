@@ -9,6 +9,7 @@ Writes:
     branding/wallpaper/contents/screenshot.png       wallpaper preview
     branding/plymouth/termos/*.png                   Plymouth boot splash images
     branding/calamares/branding/termos/*.png         installer (Calamares) images
+    branding/grub/termos/*.png                       GRUB boot menu theme images
 
 The art is Matrix-style digital rain in TermOS green, with the TermOS
 wordmark in the middle. A fixed random seed keeps the output reproducible.
@@ -203,6 +204,22 @@ def make_calamares(out, font_path):
     bg.save(os.path.join(out, "slide-bg.png"), optimize=True)
 
 
+def make_grub(out, font_path):
+    """GRUB theme images: background, logo and the selected-item bar."""
+    os.makedirs(out, exist_ok=True)
+    bg = make_wallpaper(1920, 1080, font_path, with_mark=False)
+    bg = Image.blend(bg, Image.new("RGB", bg.size, BLACK), 0.45)
+    bg.save(os.path.join(out, "background.png"), optimize=True)
+    wordmark(110, font_path).save(os.path.join(out, "logo.png"))
+    # GRUB draws highlight boxes from 9 slices: select_{nw,n,ne,w,c,e,sw,s,se}.
+    for piece in ["nw", "n", "ne", "w", "c", "e", "sw", "s", "se"]:
+        Image.new("RGBA", (4, 4), GREEN + (255,)).save(os.path.join(out, f"select_{piece}.png"))
+    # Menu frame: a thin dim-green border around a translucent black box.
+    for piece in ["nw", "n", "ne", "w", "e", "sw", "s", "se"]:
+        Image.new("RGBA", (2, 2), MID + (255,)).save(os.path.join(out, f"menu_{piece}.png"))
+    Image.new("RGBA", (4, 4), (0, 0, 0, 170)).save(os.path.join(out, "menu_c.png"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--font", help="monospace bold TTF to draw with")
@@ -224,6 +241,10 @@ def main():
     cal = os.path.join(HERE, "calamares", "branding", "termos")
     make_calamares(cal, font_path)
     print("wrote", os.path.relpath(cal) + "/*.png")
+
+    grub = os.path.join(HERE, "grub", "termos")
+    make_grub(grub, font_path)
+    print("wrote", os.path.relpath(grub) + "/*.png")
 
     ply = os.path.join(HERE, "plymouth", "termos")
     make_plymouth(ply, font_path)
