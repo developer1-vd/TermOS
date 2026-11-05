@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck and pykickstart
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck python3-pip
+          pip install --user pykickstart
+      - name: Lint
+        run: make lint
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Build flake
+        run: nix build .#termos
+      - name: Termite mode smoke test
+        run: printf 'One.\nTwo.\nThree.\n' | ./result/bin/termos-fetch | grep -q 'Kernel: Three.'

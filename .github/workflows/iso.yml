@@ -1,0 +1,25 @@
+name: Build ISO
+
+# Manual only: a full ISO build is large and slow.
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Fedora release to base on
+        default: "44"
+
+jobs:
+  iso:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+      - name: Build ISO in a Fedora container
+        env:
+          TERMOS_RELEASE: ${{ inputs.release }}
+        run: iso/build-iso.sh --container
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TermOS-${{ inputs.release }}-x86_64
+          path: build/out/*.iso

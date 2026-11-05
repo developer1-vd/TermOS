@@ -1,0 +1,84 @@
+# TermOS live ISO kickstart (template).
+#
+# Don't feed this file to livemedia-creator directly: iso/build-iso.sh fills
+# in @@RELEASE@@ and appends a %post section that installs TermOS's own files.
+
+lang en_US.UTF-8
+keyboard us
+timezone UTC
+selinux --enforcing
+firewall --enabled --service=mdns
+services --enabled=NetworkManager,livesys,livesys-late
+xconfig --startxonboot
+rootpw --lock
+shutdown
+
+zerombr
+clearpart --all
+part / --size 10240 --fstype ext4
+bootloader --location=none
+
+url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-@@RELEASE@@&arch=$basearch
+repo --name=updates --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f@@RELEASE@@&arch=$basearch
+
+%packages --ignoremissing
+# Fedora base: the GNOME desktop, for friendly (Ubuntu-style) defaults.
+@^workstation-product-environment
+kernel
+kernel-modules
+kernel-modules-extra
+
+# Live media + installer.
+dracut-live
+livesys-scripts
+anaconda-live
+anaconda-webui
+-@dial-up
+
+# Ubuntu layer.
+distrobox
+podman
+
+# Nix layer.
+nix
+nix-daemon
+
+# Windows apps.
+wine
+
+# termos-run / termos-fetch helpers.
+file
+openssh-clients
+fastfetch
+fortune-mod
+
+# Handy defaults.
+git
+htop
+%end
+
+%post
+# Live session: GNOME, auto-login as liveuser (handled by livesys-scripts).
+sed -i 's/^livesys_session=.*/livesys_session="gnome"/' /etc/sysconfig/livesys
+
+# Nix daemon, if the nix-daemon package was available for this release.
+systemctl enable nix-daemon.socket 2>/dev/null || true
+
+# Use the TermOS fastfetch config for every user.
+mkdir -p /etc/xdg/fastfetch
+cp /usr/share/termos/fastfetch/config.jsonc /etc/xdg/fastfetch/config.jsonc
+
+# Greeting.
+cat > /etc/motd <<'MOTD'
+Welcome to TermOS: Fedora + Ubuntu + Nix.
+Run `termos-fetch`, or `fortune | termos-fetch` if you're feeling lucky.
+Run apps from anywhere with `termos-run`.
+MOTD
+
+# A tiny "about" file other tools can read.
+cat > /etc/termos-release <<REL
+NAME=TermOS
+VERSION_ID=@@RELEASE@@
+BASE=Fedora Linux @@RELEASE@@
+REL
+%end

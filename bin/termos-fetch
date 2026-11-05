@@ -7,15 +7,19 @@
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -n "${TERMOS_SHARE:-}" ]]; then
-    share="$TERMOS_SHARE"
-elif [[ -d /usr/share/termos ]]; then
-    share=/usr/share/termos
+if [[ -f "$script_dir/../branding/logo-matrix.txt" ]]; then
+    # Running from a git checkout.
+    share="$script_dir/../branding"
+    conf="$script_dir/../config"
 else
-    share="$script_dir/../branding"   # running from a git checkout
+    # Installed: <prefix>/bin/termos-fetch next to <prefix>/share/termos.
+    share="${TERMOS_SHARE:-}"
+    if [[ -z "$share" ]]; then
+        share=/usr/share/termos
+        [[ -d "$script_dir/../share/termos" ]] && share="$script_dir/../share/termos"
+    fi
+    conf="$share"
 fi
-conf="$script_dir/../config"
-[[ -d "$conf" ]] || conf=/usr/share/termos
 
 matrix_mode() {
     if command -v fastfetch >/dev/null; then

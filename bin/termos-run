@@ -48,7 +48,8 @@ fi
 run_remote() {
     local host="$1" what="$2"; shift 2
     need ssh "sudo dnf install openssh-clients"
-    local remote="/tmp/termos-run-$$-$(basename -- "$app")"
+    local remote
+    remote="/tmp/termos-run-$$-$(basename -- "$app")"
     scp -qr -- "$app" "$host:$remote" || die "can't reach $what '$host'"
     local cmd="$remote" a
     if [[ -d "$app" && "$app" == *.app ]]; then
@@ -76,7 +77,7 @@ app_bundle_exe() {
                | sed -n 's:.*<string>\(.*\)</string>.*:\1:p' | head -1)"
     fi
     if [[ -z "$exe" ]]; then
-        exe="$(ls "$1/Contents/MacOS" 2>/dev/null | head -1)"
+        exe="$(find "$1/Contents/MacOS" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | head -1)"
     fi
     [[ -n "$exe" ]] || die "can't find the executable inside $1"
     printf '%s/Contents/MacOS/%s' "$1" "$exe"

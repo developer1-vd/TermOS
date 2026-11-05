@@ -1,0 +1,17 @@
+# ISO builds
+build/
+*.iso
+*.log
+*.ks.tmp
+
+# Nix
+result
+result-*
+.direnv/
+
+# Editors / OS junk
+*.swp
+*~
+.vscode/
+.idea/
+.DS_Store

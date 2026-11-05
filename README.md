@@ -117,6 +117,93 @@ The fortunes above are examples. `termos-fetch --fortune` does the same thing an
 runs `fortune` itself. If you pipe in fewer fortunes than there are stats, it gets
 more from `fortune` (or repeats yours if `fortune` isn't installed).
 
+## Building the ISO
+
+TermOS builds a bootable live ISO from Fedora with a kickstart file
+(`iso/termos.ks.in`) and Fedora's `livemedia-creator`. The live session boots
+into GNOME, and the installer is included so you can install TermOS to disk.
+
+The ISO includes:
+- Fedora Workstation (GNOME) as the base
+- Distrobox and Podman for the Ubuntu layer
+- Nix, with the Nix daemon enabled
+- Wine for Windows apps
+- `termos-fetch`, `termos-run`, fastfetch (with the Matrix logo) and fortune
+
+**On Fedora:**
+
+```bash
+sudo dnf install lorax anaconda-tui
+```
+
+```bash
+make iso
+```
+
+**On any Linux with Podman or Docker** (builds inside a Fedora container):
+
+```bash
+make iso-container
+```
+
+The ISO is written to `build/out/TermOS-<release>-x86_64.iso`. A build needs
+root (or a privileged container), about 15 GB of free disk space and a network
+connection to the Fedora mirrors. It's based on Fedora 44 by default; set
+`TERMOS_RELEASE` to change that:
+
+```bash
+TERMOS_RELEASE=45 make iso-container
+```
+
+To write the ISO to a USB stick, use Fedora Media Writer, or `dd` (this erases the
+stick, so double-check the device name):
+
+```bash
+sudo dd if=build/out/TermOS-44-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
+```
+
+You can also build ISOs from GitHub: run the **Build ISO** workflow from the
+Actions tab, and it uploads the ISO as a workflow artifact.
+
+## Installing the tools without the ISO
+
+**On Fedora** (or any Linux):
+
+```bash
+sudo dnf install fastfetch fortune-mod file
+```
+
+```bash
+sudo make install
+```
+
+This installs `termos-fetch` and `termos-run` to `/usr/local/bin` and the logos and
+configs to `/usr/local/share/termos`. Use `PREFIX=` to install somewhere else, and
+`sudo make uninstall` to remove them.
+
+**With Nix:**
+
+```bash
+nix run github:developer1-vd/TermOS
+```
+
+```bash
+nix profile install github:developer1-vd/TermOS
+```
+
+The Nix package brings fastfetch, fortune and its other helpers with it.
+
+## Development
+
+```bash
+make lint      # bash -n, shellcheck and ksvalidator
+make ks        # write the generated kickstart to build/termos.ks
+make clean     # remove build/
+```
+
+`nix develop` opens a shell with the lint tools. CI runs `make lint` and builds the
+Nix package on every push.
+
 ## Repository layout
 
 ```
@@ -126,31 +213,11 @@ branding/logo-matrix.txt       Matrix logo
 branding/logo-termite.txt      termite logo
 config/fastfetch/config.jsonc  fastfetch config using the Matrix logo
 config/neofetch/config.conf    neofetch config using the Matrix logo
-```
-
-## Trying it on Fedora
-
-TermOS is in early development and no installable images exist yet. You can try
-the logos on a normal Fedora install:
-
-```bash
-sudo dnf install fastfetch fortune-mod
-```
-
-```bash
-sudo mkdir -p /usr/share/termos && sudo cp branding/*.txt /usr/share/termos/
-```
-
-```bash
-mkdir -p ~/.config/fastfetch && cp config/fastfetch/config.jsonc ~/.config/fastfetch/
-```
-
-```bash
-fastfetch
-```
-
-```bash
-fortune | bin/termos-fetch
+iso/termos.ks.in               kickstart template for the live ISO
+iso/build-iso.sh               ISO builder
+flake.nix                      Nix package, apps and dev shell
+Makefile                       install, iso, lint and clean targets
+.github/workflows/             CI (lint, Nix build) and the manual ISO build
 ```
 
 ## License
