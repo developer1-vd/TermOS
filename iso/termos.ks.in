@@ -70,6 +70,15 @@ libvirt-daemon-config-network
 # Flatpak (Flathub is added in %post).
 flatpak
 
+# Boot loaders: lorax needs these to make the ISO bootable (BIOS + UEFI with
+# Secure Boot), and Calamares needs them to install GRUB.
+grub2-pc
+grub2-pc-modules
+grub2-efi-x64
+grub2-efi-x64-cdboot
+shim-x64
+efibootmgr
+
 # GRUB theme: grub2-mkfont makes its fonts from DejaVu Sans Mono.
 grub2-tools-extra
 dejavu-sans-mono-fonts

@@ -110,13 +110,55 @@ write_ks() {
     echo "build-iso: wrote $ks (Fedora $release, Darling: $([[ "$darling" == 0 ]] && echo no || echo yes))"
 }
 
+# The ISO's own boot menus come from lorax's live templates. Copy them and
+# patch both menus (BIOS and UEFI) to load the TermOS GRUB theme, which
+# the kickstart's %post installs at /boot/grub2/themes/termos in the image.
+prepare_templates() {
+    local src=/usr/share/lorax/templates.d/99-generic
+    local dest="$build/lorax-templates"
+    [[ -d "$src/live" ]] || die "lorax templates not found at $src"
+    rm -rf "$dest"
+    cp -r "$src" "$dest"
+
+    local theme_block="$build/theme.cfg"
+    cat > "$theme_block" <<'CFG'
+
+# TermOS boot menu theme
+if [ -f ($root)/boot/grub2/themes/termos/theme.txt ]; then
+  insmod all_video
+  insmod gfxterm
+  insmod png
+  set gfxmode=auto
+  terminal_output gfxterm
+  for f in ($root)/boot/grub2/themes/termos/*.pf2; do loadfont $f; done
+  set theme=($root)/boot/grub2/themes/termos/theme.txt
+fi
+CFG
+    local cfg
+    for cfg in "$dest"/live/config_files/x86/grub2-bios.cfg "$dest"/live/config_files/x86/grub2-efi.cfg; do
+        grep -q "^search .*@ISOLABEL@" "$cfg" || die "unexpected lorax template: $cfg"
+        sed -i "/^search .*@ISOLABEL@/r $theme_block" "$cfg"
+    done
+    # Put the theme on the ISO next to the BIOS grub.cfg; UEFI GRUB finds it
+    # there too, since both menus search for the ISO by label first.
+    # (${GRUB2DIR} is a lorax template variable, so it stays unexpanded.)
+    # shellcheck disable=SC2016
+    grep -q '^mkdir ${GRUB2DIR}$' "$dest/live/x86.tmpl" || die "unexpected lorax x86.tmpl"
+    # shellcheck disable=SC2016
+    sed -i 's|^mkdir ${GRUB2DIR}$|mkdir ${GRUB2DIR}\nmkdir ${GRUB2DIR}/themes/termos\ninstall boot/grub2/themes/termos/* ${GRUB2DIR}/themes/termos/|' \
+        "$dest/live/x86.tmpl"
+    rm -f "$theme_block"
+}
+
 build_host() {
     [[ $EUID -eq 0 ]] || die "run as root (sudo), or use --container"
     command -v livemedia-creator >/dev/null || die "install lorax: sudo dnf install lorax anaconda-tui"
     write_ks
+    prepare_templates
     rm -rf "$build/out"
     livemedia-creator \
         --ks "$ks" \
+        --lorax-templates "$build/lorax-templates" \
         --no-virt \
         --make-iso \
         --iso-only \
