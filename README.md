@@ -224,7 +224,10 @@ make iso-container
 
 The ISO is written to `build/out/TermOS-<release>-x86_64.iso`. A build needs
 root (or a privileged container), about 15 GB of free disk space and a network
-connection to the Fedora mirrors. It's based on Fedora 44 by default; set
+connection to the Fedora mirrors. The build machine's kernel also needs loop
+devices and FAT (vfat) support, which normal Fedora installs and GitHub's runners
+have; some minimal VMs and sandboxes don't, and the build then fails at the
+`mkefiboot` step. It's based on Fedora 44 by default; set
 `TERMOS_RELEASE` to change that:
 
 ```bash
