@@ -1,11 +1,13 @@
 # TermOS live ISO kickstart (template).
 #
 # Don't feed this file to livemedia-creator directly: iso/build-iso.sh fills
-# in @@RELEASE@@ and appends a %post section that installs TermOS's own files.
+# in @@RELEASE@@, and adds a %post section that installs TermOS's own files.
+# The block between the DARLING markers is removed when TERMOS_DARLING=0.
 
 lang en_US.UTF-8
 keyboard us
 timezone UTC
+network --bootproto=dhcp --device=link --activate
 selinux --enforcing
 firewall --enabled --service=mdns
 services --enabled=NetworkManager,livesys,livesys-late
@@ -15,15 +17,18 @@ shutdown
 
 zerombr
 clearpart --all
-part / --size 10240 --fstype ext4
+part / --size 14336 --fstype ext4
 bootloader --location=none
 
-url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-@@RELEASE@@&arch=$basearch
+# livemedia-creator needs a plain base URL here (it can't use --mirrorlist).
+url --url=https://download.fedoraproject.org/pub/fedora/linux/releases/@@RELEASE@@/Everything/$basearch/os/
 repo --name=updates --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f@@RELEASE@@&arch=$basearch
 
 %packages --ignoremissing
-# Fedora base: the GNOME desktop, for friendly (Ubuntu-style) defaults.
-@^workstation-product-environment
+# Fedora base with the KDE Plasma desktop.
+@^kde-desktop-environment
+@kde-apps
+@kde-media
 kernel
 kernel-modules
 kernel-modules-extra
@@ -45,6 +50,22 @@ nix-daemon
 
 # Windows apps.
 wine
+wine-mono
+mingw32-wine-gecko
+mingw64-wine-gecko
+wine-dxvk
+winetricks
+bottles
+lutris
+protontricks
+
+# BSD apps (run in a VM).
+qemu-kvm
+virt-manager
+libvirt-daemon-config-network
+
+# Flatpak (Flathub is added in %post).
+flatpak
 
 # termos-run / termos-fetch helpers.
 file
@@ -58,11 +79,18 @@ htop
 %end
 
 %post
-# Live session: GNOME, auto-login as liveuser (handled by livesys-scripts).
-sed -i 's/^livesys_session=.*/livesys_session="gnome"/' /etc/sysconfig/livesys
+# Live session: KDE Plasma, auto-login as liveuser (handled by livesys-scripts).
+sed -i 's/^livesys_session=.*/livesys_session="kde"/' /etc/sysconfig/livesys
 
 # Nix daemon, if the nix-daemon package was available for this release.
 systemctl enable nix-daemon.socket 2>/dev/null || true
+
+# libvirt for BSD VMs.
+systemctl enable libvirtd.socket 2>/dev/null || true
+
+# Flathub, for apps that aren't packaged for Fedora.
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
+    || echo "TermOS: couldn't add Flathub; add it later with flatpak remote-add"
 
 # Use the TermOS fastfetch config for every user.
 mkdir -p /etc/xdg/fastfetch
@@ -72,7 +100,7 @@ cp /usr/share/termos/fastfetch/config.jsonc /etc/xdg/fastfetch/config.jsonc
 cat > /etc/motd <<'MOTD'
 Welcome to TermOS: Fedora + Ubuntu + Nix.
 Run `termos-fetch`, or `fortune | termos-fetch` if you're feeling lucky.
-Run apps from anywhere with `termos-run`.
+Run Windows, macOS, BSD, Nix and Ubuntu apps with `termos-run`.
 MOTD
 
 # A tiny "about" file other tools can read.
@@ -80,5 +108,30 @@ cat > /etc/termos-release <<REL
 NAME=TermOS
 VERSION_ID=@@RELEASE@@
 BASE=Fedora Linux @@RELEASE@@
+DESKTOP=KDE Plasma
 REL
 %end
+
+# @@DARLING_BEGIN@@
+%post
+# Darling (macOS apps) isn't in Fedora, so it comes from the medzik/darling
+# COPR. That package is community-built, so a failure here only skips Darling
+# instead of failing the whole ISO build.
+cat > /etc/yum.repos.d/termos-darling.repo <<'REPO'
+[termos-darling]
+name=Darling (macOS translation layer) from COPR medzik/darling
+baseurl=https://download.copr.fedorainfracloud.org/results/medzik/darling/fedora-$releasever-$basearch/
+type=rpm-md
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/medzik/darling/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+skip_if_unavailable=True
+REPO
+if dnf install -y darling; then
+    echo "TermOS: Darling installed"
+else
+    echo "TermOS: WARNING: Darling could not be installed; macOS apps will need a Mac over SSH"
+fi
+%end
+# @@DARLING_END@@

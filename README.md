@@ -46,7 +46,8 @@ termos-run github:owner/repo
 ```
 
 **About macOS:** Darling is a compatibility layer for macOS apps, much like Wine is
-for Windows apps. It's still experimental: command-line tools work best, and most
+for Windows apps. The TermOS ISO comes with it preinstalled (from the community
+`medzik/darling` COPR, since Darling isn't in Fedora's own repos). It's still experimental: command-line tools work best, and most
 graphical apps don't run yet. If Darling isn't installed, `termos-run` copies the
 app to a real Mac and runs it there over SSH. Set `TERMOS_MAC_HOST` to that Mac's
 SSH host (default: `termos-mac`). TermOS doesn't ship a macOS virtual machine,
@@ -54,7 +55,7 @@ because Apple's license only allows macOS to run on Apple hardware.
 
 **About BSD:** BSD programs can't run on the Linux kernel. Linux has no
 compatibility layer for them, so TermOS runs them on a real BSD system in a VM.
-Create a FreeBSD (or other BSD) guest in GNOME Boxes or virt-manager, enable SSH,
+Create a FreeBSD (or other BSD) guest in virt-manager (preinstalled on the ISO), enable SSH,
 and set `TERMOS_BSD_HOST` to its SSH host (default: `termos-bsd`). Many BSD tools
 are also packaged for Linux, so check `dnf search` or nixpkgs first.
 
@@ -121,14 +122,24 @@ more from `fortune` (or repeats yours if `fortune` isn't installed).
 
 TermOS builds a bootable live ISO from Fedora with a kickstart file
 (`iso/termos.ks.in`) and Fedora's `livemedia-creator`. The live session boots
-into GNOME, and the installer is included so you can install TermOS to disk.
+into **KDE Plasma**, and the installer is included so you can install TermOS to disk.
 
-The ISO includes:
-- Fedora Workstation (GNOME) as the base
-- Distrobox and Podman for the Ubuntu layer
-- Nix, with the Nix daemon enabled
-- Wine for Windows apps
-- `termos-fetch`, `termos-run`, fastfetch (with the Matrix logo) and fortune
+Preinstalled on the ISO:
+
+| For             | Preinstalled                                                       |
+| --------------- | ------------------------------------------------------------------ |
+| Desktop         | Fedora with KDE Plasma and the KDE apps                            |
+| Windows apps    | Wine (with Mono, Gecko and DXVK), Winetricks, Bottles, Lutris, Protontricks |
+| macOS apps      | Darling                                                            |
+| BSD apps        | QEMU/KVM and virt-manager, for running a BSD VM                    |
+| Ubuntu apps     | Distrobox and Podman                                               |
+| Nix apps        | Nix, with the Nix daemon enabled                                   |
+| Everything else | Flatpak with Flathub                                               |
+| TermOS          | `termos-fetch`, `termos-run`, fastfetch (Matrix logo) and fortune  |
+
+Darling is built by the community, not Fedora. If it can't be installed when the
+ISO is built, the build carries on without it and prints a warning. To leave it
+out on purpose, set `TERMOS_DARLING=0`.
 
 **On Fedora:**
 

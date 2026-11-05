@@ -8,6 +8,7 @@
 # Environment:
 #   TERMOS_RELEASE   Fedora release to base on (default: host's, else 44)
 #   TERMOS_ARCH      architecture (default: x86_64)
+#   TERMOS_DARLING   1 to preinstall Darling for macOS apps (default), 0 to skip
 #
 # The ISO lands in build/out/. A full build needs ~15 GB of free disk space,
 # root, loop devices, and a network connection to the Fedora mirrors.
@@ -29,6 +30,7 @@ default_release() {
 }
 release="${TERMOS_RELEASE:-$(default_release)}"
 arch="${TERMOS_ARCH:-x86_64}"
+darling="${TERMOS_DARLING:-1}"
 [[ "$release" =~ ^[0-9]+$ ]] || die "TERMOS_RELEASE must be a Fedora release number, got '$release'"
 
 # Append a heredoc to the kickstart that recreates $src at $dest on the image.
@@ -46,7 +48,9 @@ embed() {
 
 write_ks() {
     mkdir -p "$build"
-    sed "s/@@RELEASE@@/$release/g" "$repo/iso/termos.ks.in" > "$ks"
+    local strip='/^# @@DARLING_BEGIN@@$/,/^# @@DARLING_END@@$/d'
+    [[ "$darling" == 0 ]] || strip='/^# @@DARLING_\(BEGIN\|END\)@@$/d'
+    sed -e "s/@@RELEASE@@/$release/g" -e "$strip" "$repo/iso/termos.ks.in" > "$ks"
     # Put our %post first: kickstart runs %post sections in file order, so
     # insert it right before the template's first %post.
     local files_ks="$build/files.ks"
@@ -69,7 +73,7 @@ write_ks() {
         { print }
     ' "$ks" > "$ks.tmp" && mv "$ks.tmp" "$ks"
     rm -f "$files_ks"
-    echo "build-iso: wrote $ks (Fedora $release)"
+    echo "build-iso: wrote $ks (Fedora $release, Darling: $([[ "$darling" == 0 ]] && echo no || echo yes))"
 }
 
 build_host() {
@@ -98,7 +102,7 @@ build_container() {
     "$engine" run --rm --privileged \
         -v /dev:/dev \
         -v "$repo:/src:z" \
-        -e TERMOS_RELEASE="$release" -e TERMOS_ARCH="$arch" \
+        -e TERMOS_RELEASE="$release" -e TERMOS_ARCH="$arch" -e TERMOS_DARLING="$darling" \
         "registry.fedoraproject.org/fedora:$release" \
         bash -c 'dnf install -y lorax anaconda-tui && /src/iso/build-iso.sh'
 }
@@ -107,6 +111,6 @@ case "${1:-}" in
     "")           build_host ;;
     --container)  build_container ;;
     --ks-only)    write_ks ;;
-    -h|--help)    sed -n '2,14s/^# \{0,1\}//p' "$0" ;;
+    -h|--help)    sed -n '2,15s/^# \{0,1\}//p' "$0" ;;
     *)            die "unknown option: $1 (see --help)" ;;
 esac

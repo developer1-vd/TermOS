@@ -94,7 +94,7 @@ run_macos() {
         exec darling "$(darling_path "$target")" "$@"
     fi
     case "$app" in
-        *.pkg|*.dmg) die "installing .pkg/.dmg needs Darling (see https://www.darlinghq.org)" ;;
+        *.pkg|*.dmg) die "installing .pkg/.dmg needs Darling (sudo dnf copr enable medzik/darling && sudo dnf install darling)" ;;
     esac
     run_remote "${TERMOS_MAC_HOST:-termos-mac}" \
         "Mac (install Darling, or set TERMOS_MAC_HOST)" "$@"
