@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# termos-fetch: TermOS system info.
+#
+#   termos-fetch              matrix logo + real stats (fastfetch, else neofetch)
+#   fortune | termos-fetch    termite logo, every stat is a fortune
+#   termos-fetch --fortune    same, but runs fortune itself
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${TERMOS_SHARE:-}" ]]; then
+    share="$TERMOS_SHARE"
+elif [[ -d /usr/share/termos ]]; then
+    share=/usr/share/termos
+else
+    share="$script_dir/../branding"   # running from a git checkout
+fi
+conf="$script_dir/../config"
+[[ -d "$conf" ]] || conf=/usr/share/termos
+
+matrix_mode() {
+    if command -v fastfetch >/dev/null; then
+        exec fastfetch --config "$conf/fastfetch/config.jsonc" \
+            --logo "$share/logo-matrix.txt" --logo-type file --logo-color-1 green
+    elif command -v neofetch >/dev/null; then
+        exec neofetch --config "$conf/neofetch/config.conf" \
+            --ascii "$share/logo-matrix.txt" --ascii_colors 2
+    else
+        echo "termos-fetch: install fastfetch or neofetch" >&2
+        exit 1
+    fi
+}
+
+termite_mode() {
+    local labels=(OS Host Kernel Uptime Packages Shell Terminal CPU Memory)
+    local fortunes=() line
+
+    # Fortunes piped in on stdin, one per line.
+    if [[ "${1:-}" == stdin ]]; then
+        while IFS= read -r line; do
+            line="${line#"${line%%[![:space:]]*}"}"
+            [[ -n "$line" ]] && fortunes+=("$line")
+        done
+    fi
+    # Top up with fresh fortunes if we have fewer than we need.
+    local given=${#fortunes[@]}
+    while (( ${#fortunes[@]} < ${#labels[@]} )); do
+        if command -v fortune >/dev/null; then
+            line="$(fortune -s -n 60 | tr -s '\n\t ' ' ')"
+            fortunes+=("${line% }")
+        elif (( given == 0 )); then
+            echo "termos-fetch: install fortune (fortune-mod) or pipe text in" >&2
+            exit 1
+        else
+            fortunes+=("${fortunes[${#fortunes[@]} % given]}")
+        fi
+    done
+
+    local logo=() width=0 l
+    mapfile -t logo < "$share/logo-termite.txt"
+    for l in "${logo[@]}"; do (( ${#l} > width )) && width=${#l}; done
+
+    local brown=$'\e[33m' key=$'\e[1;33m' reset=$'\e[0m'
+    [[ -t 1 ]] || { brown=; key=; reset=; }
+
+    local info=("${key}termite${reset}@${key}TermOS${reset}" "-----------------")
+    local i
+    for i in "${!labels[@]}"; do
+        info+=("${key}${labels[i]}${reset}: ${fortunes[i]}")
+    done
+
+    local rows=$(( ${#logo[@]} > ${#info[@]} ? ${#logo[@]} : ${#info[@]} ))
+    for (( i = 0; i < rows; i++ )); do
+        printf '%s%-*s%s   %s\n' "$brown" "$width" "${logo[i]:-}" "$reset" "${info[i]:-}"
+    done
+}
+
+case "${1:-}" in
+    --fortune) termite_mode ;;
+    -h|--help) sed -n '2,7s/^# \{0,1\}//p' "$0" ;;
+    *) if [[ -t 0 ]]; then matrix_mode; else termite_mode stdin; fi ;;
+esac

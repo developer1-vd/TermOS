@@ -1,51 +1,110 @@
 # TermOS
 
-TermOS is a terminal-focused Linux distribution based on **Fedora Linux**.
+TermOS is a Linux distribution that combines **Fedora**, **Ubuntu** and **Nix**.
 
-It uses Fedora as its foundation (packages, release cycle, kernel and tooling) and
-adds a curated, keyboard-driven, terminal-first experience on top.
+> The name doesn't mean anything. It's not a terminal OS. TermOS is just a cool name.
 
-## Why Fedora?
+## The three parts
 
-- **Up-to-date and stable** – recent kernels, compilers and libraries, with a
-  predictable ~6 month release cycle.
-- **Upstream-first** – Fedora ships software close to upstream, so TermOS does too.
-- **Solid tooling** – `dnf` for packages, `systemd` for services, SELinux for
-  security, and Btrfs as the default filesystem.
-- **Reproducible images** – Fedora's Kickstart and image-building tools make it
-  straightforward to build custom spins.
+| Part       | What TermOS takes from it                                                   |
+| ---------- | --------------------------------------------------------------------------- |
+| **Fedora** | The base system: kernel, `dnf` and RPM packages, `systemd`, SELinux, Btrfs, `firewalld`, and the six-month release cycle. |
+| **Ubuntu** | Friendly defaults, an easy first boot, and access to Ubuntu/Debian software (`.deb` packages run in a Distrobox Ubuntu container). |
+| **Nix**    | The Nix package manager, installed alongside `dnf`, for declarative and reproducible per-user setups, plus nixpkgs' huge package set. |
 
-## Base system
-
-| Component        | TermOS (Fedora-based)           |
-| ---------------- | ------------------------------- |
-| Package manager  | `dnf` (RPM packages)            |
-| Extra software   | Flatpak (Flathub), COPR repos   |
-| Init system      | `systemd`                       |
-| Security         | SELinux (enforcing)             |
-| Filesystem       | Btrfs                           |
-| Firewall         | `firewalld`                     |
-
-## Getting started
-
-TermOS is in early development and no installable images are published yet.
-Until then, you can get close to the TermOS experience on a standard Fedora
-install:
+Because Fedora is the base, `dnf` is the system package manager. Nix and the Ubuntu
+container are extra layers you can install software from, and they don't replace it.
 
 ```bash
-sudo dnf upgrade --refresh
+sudo dnf install htop                    # Fedora (system)
+nix profile install nixpkgs#ripgrep      # Nix (per-user, reproducible)
+distrobox enter ubuntu -- sudo apt install cowsay   # Ubuntu (container)
+```
+
+## The logo
+
+TermOS has two logos, and which one you see depends on how you run the system-info tool.
+
+### Matrix (default)
+
+`fastfetch`, `neofetch` and `termos-fetch` all show TermOS's logo, which is green
+Matrix-style digital rain:
+
+```
+ 1   0 1    0   1  0    1
+ 0 1 1 0  1 1 0 1  1  0 1
+ 1 0 0 1  0 0 1 0  0  1 1
+ 0 1   0  1   0 1  1  0 0
+ 1 0 1 1  0 1 1 0  0  1 0
+   1 0 0  1 0   1  1  0 1
+ 0 0 1 1  0 1 0 0  1    1
+ 1 1 0    1 0 1 1  0  1 0
+ 0   1 0  0 1 0    1  0 1
+ 1 0 0 1    1 1 0  0  1
+   1 1 0  1 0   1  1    0
+ 0     1    0   0     1
+```
+
+### Termite (fortune mode)
+
+Pipe `fortune` into it and TermOS turns into a termite, and every stat becomes a fortune:
+
+```bash
+fortune | termos-fetch
+```
+
+```
+        \     /       termite@TermOS
+         \___/        -----------------
+       .-(o o)-.      OS: You will be fortunate.
+      /  `-^-'  \     Host: Beware of low-flying butterflies.
+     /|  (___)  |\    Kernel: A closed mouth gathers no foot.
+    / |  (   )  | \   Uptime: You will soon meet a termite.
+      |  (___)  |     Packages: Today is a good day to compile.
+     /   (   )   \    Shell: The bug is in the other file.
+    /    (___)    \   Terminal: Nothing is as permanent as a temporary fix.
+          ( )         CPU: Your lucky number is 0x1F.
+          `-'         Memory: You forgot something. You'll remember later.
+```
+
+The fortunes above are examples. `termos-fetch --fortune` does the same thing and
+runs `fortune` itself. If you pipe in fewer fortunes than there are stats, it gets
+more from `fortune` (or repeats yours if `fortune` isn't installed).
+
+## Repository layout
+
+```
+bin/termos-fetch               fetch wrapper (matrix mode / termite mode)
+branding/logo-matrix.txt       Matrix logo
+branding/logo-termite.txt      termite logo
+config/fastfetch/config.jsonc  fastfetch config using the Matrix logo
+config/neofetch/config.conf    neofetch config using the Matrix logo
+```
+
+## Trying it on Fedora
+
+TermOS is in early development and no installable images exist yet. You can try
+the logos on a normal Fedora install:
+
+```bash
+sudo dnf install fastfetch fortune-mod
 ```
 
 ```bash
-sudo dnf install zsh tmux neovim git htop fzf ripgrep
+sudo mkdir -p /usr/share/termos && sudo cp branding/*.txt /usr/share/termos/
 ```
 
-## Influences
+```bash
+mkdir -p ~/.config/fastfetch && cp config/fastfetch/config.jsonc ~/.config/fastfetch/
+```
 
-TermOS is built on Fedora, but borrows ideas from other distributions:
+```bash
+fastfetch
+```
 
-- **Ubuntu** – approachable defaults and a friendly first-run experience.
-- **Nix** – an emphasis on declarative, reproducible configuration.
+```bash
+fortune | bin/termos-fetch
+```
 
 ## License
 
