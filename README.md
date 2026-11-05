@@ -1,6 +1,6 @@
 # TermOS
 
-TermOS is a Linux distribution that combines **Fedora**, **Ubuntu** and **Nix**, and also runs **Windows** and **BSD** apps.
+TermOS is a Linux distribution that combines **Fedora**, **Ubuntu** and **Nix**, and also runs **Windows**, **macOS** and **BSD** apps.
 
 > The name doesn't mean anything. It's not a terminal OS. TermOS is just a cool name.
 
@@ -21,29 +21,47 @@ nix profile install nixpkgs#ripgrep      # Nix (per-user, reproducible)
 distrobox enter ubuntu -- sudo apt install cowsay   # Ubuntu (container)
 ```
 
-## Windows and BSD apps
+## Running apps from anywhere
 
-TermOS can also run **Windows** and **BSD** apps. `termos-run` checks what a file
-was built for and sends it to the right place:
+`termos-run` runs **Windows**, **macOS**, **BSD**, **Nix**, **Ubuntu** and **Linux**
+apps. It checks what you gave it and sends it to the right place:
 
-| App type                          | How TermOS runs it                                   |
-| --------------------------------- | ---------------------------------------------------- |
-| Windows (`.exe`, `.msi`)          | [Wine](https://www.winehq.org/), in its own prefix at `~/.local/share/termos/wine` |
-| Windows games                     | Steam with Proton, or Bottles (Flatpak)               |
+| App type                                  | How TermOS runs it                                   |
+| ----------------------------------------- | ---------------------------------------------------- |
+| Windows (`.exe`, `.msi`)                  | [Wine](https://www.winehq.org/), in its own prefix at `~/.local/share/termos/wine` |
+| Windows games                             | Steam with Proton, or Bottles (Flatpak)              |
+| macOS (Mach-O binaries, `.app` bundles)   | [Darling](https://www.darlinghq.org/) if installed, otherwise a Mac over SSH |
+| macOS installers (`.pkg`, `.dmg`)         | Darling                                              |
 | BSD (FreeBSD, NetBSD, OpenBSD, DragonFly) | Copied to a BSD virtual machine and run there over SSH |
-| Ubuntu (`.deb`)                   | Installed in the Ubuntu Distrobox container           |
-| Linux                             | Run directly                                         |
+| Nix (`nix:hello`, `nixpkgs#hello`, a folder with `flake.nix`) | `nix run`, with nothing installed permanently |
+| Ubuntu (`.deb`)                           | Installed in the Ubuntu Distrobox container          |
+| Linux                                     | Run directly                                         |
 
 ```bash
 termos-run notepad++.exe
+termos-run ./SomeTool.app
 termos-run ./freebsd-tool --help
+termos-run nix:cowsay moo
+termos-run github:owner/repo
 ```
+
+**About macOS:** Darling is a compatibility layer for macOS apps, much like Wine is
+for Windows apps. It's still experimental: command-line tools work best, and most
+graphical apps don't run yet. If Darling isn't installed, `termos-run` copies the
+app to a real Mac and runs it there over SSH. Set `TERMOS_MAC_HOST` to that Mac's
+SSH host (default: `termos-mac`). TermOS doesn't ship a macOS virtual machine,
+because Apple's license only allows macOS to run on Apple hardware.
 
 **About BSD:** BSD programs can't run on the Linux kernel. Linux has no
 compatibility layer for them, so TermOS runs them on a real BSD system in a VM.
 Create a FreeBSD (or other BSD) guest in GNOME Boxes or virt-manager, enable SSH,
 and set `TERMOS_BSD_HOST` to its SSH host (default: `termos-bsd`). Many BSD tools
 are also packaged for Linux, so check `dnf search` or nixpkgs first.
+
+**About Nix:** `termos-run nix:<name>` runs any package from nixpkgs without
+installing it, and any flake reference (`nixpkgs#hello`, `github:owner/repo`) or
+local folder with a `flake.nix` works too. To install Nix on Fedora, see
+[nixos.org/download](https://nixos.org/download).
 
 ```bash
 sudo dnf install wine distrobox openssh-clients
@@ -103,7 +121,7 @@ more from `fortune` (or repeats yours if `fortune` isn't installed).
 
 ```
 bin/termos-fetch               fetch wrapper (matrix mode / termite mode)
-bin/termos-run                 run Windows, BSD, Ubuntu or Linux apps
+bin/termos-run                 run Windows, macOS, BSD, Nix, Ubuntu or Linux apps
 branding/logo-matrix.txt       Matrix logo
 branding/logo-termite.txt      termite logo
 config/fastfetch/config.jsonc  fastfetch config using the Matrix logo
