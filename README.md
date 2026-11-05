@@ -1,6 +1,6 @@
 # TermOS
 
-TermOS is a Linux distribution that combines **Fedora**, **Ubuntu** and **Nix**.
+TermOS is a Linux distribution that combines **Fedora**, **Ubuntu** and **Nix**, and also runs **Windows** and **BSD** apps.
 
 > The name doesn't mean anything. It's not a terminal OS. TermOS is just a cool name.
 
@@ -19,6 +19,34 @@ container are extra layers you can install software from, and they don't replace
 sudo dnf install htop                    # Fedora (system)
 nix profile install nixpkgs#ripgrep      # Nix (per-user, reproducible)
 distrobox enter ubuntu -- sudo apt install cowsay   # Ubuntu (container)
+```
+
+## Windows and BSD apps
+
+TermOS can also run **Windows** and **BSD** apps. `termos-run` checks what a file
+was built for and sends it to the right place:
+
+| App type                          | How TermOS runs it                                   |
+| --------------------------------- | ---------------------------------------------------- |
+| Windows (`.exe`, `.msi`)          | [Wine](https://www.winehq.org/), in its own prefix at `~/.local/share/termos/wine` |
+| Windows games                     | Steam with Proton, or Bottles (Flatpak)               |
+| BSD (FreeBSD, NetBSD, OpenBSD, DragonFly) | Copied to a BSD virtual machine and run there over SSH |
+| Ubuntu (`.deb`)                   | Installed in the Ubuntu Distrobox container           |
+| Linux                             | Run directly                                         |
+
+```bash
+termos-run notepad++.exe
+termos-run ./freebsd-tool --help
+```
+
+**About BSD:** BSD programs can't run on the Linux kernel. Linux has no
+compatibility layer for them, so TermOS runs them on a real BSD system in a VM.
+Create a FreeBSD (or other BSD) guest in GNOME Boxes or virt-manager, enable SSH,
+and set `TERMOS_BSD_HOST` to its SSH host (default: `termos-bsd`). Many BSD tools
+are also packaged for Linux, so check `dnf search` or nixpkgs first.
+
+```bash
+sudo dnf install wine distrobox openssh-clients
 ```
 
 ## The logo
@@ -75,6 +103,7 @@ more from `fortune` (or repeats yours if `fortune` isn't installed).
 
 ```
 bin/termos-fetch               fetch wrapper (matrix mode / termite mode)
+bin/termos-run                 run Windows, BSD, Ubuntu or Linux apps
 branding/logo-matrix.txt       Matrix logo
 branding/logo-termite.txt      termite logo
 config/fastfetch/config.jsonc  fastfetch config using the Matrix logo

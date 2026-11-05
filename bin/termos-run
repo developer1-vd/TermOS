@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# termos-run: run an app on TermOS, whatever it was built for.
+#
+#   termos-run app.exe [args]      Windows app   -> Wine
+#   termos-run setup.msi           Windows installer -> Wine (msiexec)
+#   termos-run app.deb             Ubuntu package -> installed in the Ubuntu Distrobox
+#   termos-run ./bsd-binary [args] FreeBSD/NetBSD/OpenBSD binary -> BSD VM over SSH
+#   termos-run ./linux-binary      Linux binary -> run directly
+#
+# BSD binaries can't run on the Linux kernel, so TermOS runs them on a BSD
+# virtual machine. Set TERMOS_BSD_HOST (default: termos-bsd) to an SSH host
+# for that VM (e.g. a FreeBSD guest in GNOME Boxes or virt-manager).
+set -euo pipefail
+
+die() { echo "termos-run: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null || die "$1 is not installed ($2)"; }
+
+[[ $# -ge 1 ]] || { sed -n '2,13s/^# \{0,1\}//p' "$0"; exit 1; }
+case "$1" in -h|--help) sed -n '2,13s/^# \{0,1\}//p' "$0"; exit 0 ;; esac
+
+app="$1"; shift
+[[ -e "$app" ]] || die "no such file: $app"
+
+need file "sudo dnf install file"
+kind="$(file -b -- "$app")"
+
+run_windows() {
+    need wine "sudo dnf install wine"
+    export WINEPREFIX="${WINEPREFIX:-$HOME/.local/share/termos/wine}"
+    mkdir -p "$WINEPREFIX"
+    if [[ "$app" == *.msi || "$app" == *.MSI ]]; then
+        exec wine msiexec /i "$app" "$@"
+    fi
+    exec wine "$app" "$@"
+}
+
+run_deb() {
+    need distrobox "sudo dnf install distrobox"
+    distrobox list | grep -qw ubuntu || distrobox create --yes --name ubuntu --image ubuntu:24.04
+    local abs; abs="$(realpath -- "$app")"
+    exec distrobox enter ubuntu -- sudo apt-get install -y "$abs"
+}
+
+run_bsd() {
+    need ssh "sudo dnf install openssh-clients"
+    local host="${TERMOS_BSD_HOST:-termos-bsd}"
+    local remote="/tmp/termos-run-$$-$(basename -- "$app")"
+    scp -q -- "$app" "$host:$remote" || die "can't reach BSD VM '$host' (set TERMOS_BSD_HOST)"
+    local args="" a
+    for a in "$@"; do args+=" $(printf '%q' "$a")"; done
+    exec ssh -t "$host" "chmod +x $remote && $remote$args; rc=\$?; rm -f $remote; exit \$rc"
+}
+
+case "$kind" in
+    *"PE32"*|*"MS-DOS executable"*)       run_windows "$@" ;;
+    *"Composite Document File"*|*"MSI Installer"*) run_windows "$@" ;;
+    *"Debian binary package"*)            run_deb ;;
+    *ELF*FreeBSD*|*ELF*NetBSD*|*ELF*OpenBSD*|*ELF*DragonFly*) run_bsd "$@" ;;
+    *ELF*)                                exec "$(realpath -- "$app")" "$@" ;;
+    *) case "$app" in
+           *.exe|*.EXE|*.msi|*.MSI) run_windows "$@" ;;
+           *.deb) run_deb ;;
+           *) die "don't know how to run this: $kind" ;;
+       esac ;;
+esac
