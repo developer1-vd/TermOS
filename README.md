@@ -227,8 +227,9 @@ root (or a privileged container), about 15 GB of free disk space and a network
 connection to the Fedora mirrors. The build machine's kernel also needs loop
 devices and FAT (vfat) support, which normal Fedora installs and GitHub's runners
 have; some minimal VMs and sandboxes don't, and the build then fails at the
-`mkefiboot` step. It's based on Fedora 44 by default; set
-`TERMOS_RELEASE` to change that:
+`mkefiboot` step.
+
+TermOS is based on Fedora 44 by default; set `TERMOS_RELEASE` to change that:
 
 ```bash
 TERMOS_RELEASE=45 make iso-container
