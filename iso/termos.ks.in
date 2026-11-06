@@ -17,7 +17,9 @@ shutdown
 
 zerombr
 clearpart --all
-part / --size 14336 --fstype ext4
+# Room for Fedora 45 KDE plus the extras; the image is sparse, so unused
+# space costs nothing (14 GB was too small for Fedora 45).
+part / --size 20480 --fstype ext4
 bootloader --location=none
 
 # livemedia-creator needs a plain base URL here (it can't use --mirrorlist).
