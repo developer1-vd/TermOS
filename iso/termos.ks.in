@@ -134,6 +134,9 @@ for f in /usr/share/kde-settings/kde-profile/default/xdg/kscreenlockerrc; do
     [ -f "$f" ] && sed -i 's|wallpapers/Fedora/|wallpapers/TermOS/|g' "$f"
 done
 
+# TermOS fortunes: `fortune termos`, and they turn up in termite mode.
+strfile /usr/share/games/fortune/termos >/dev/null || echo "TermOS: couldn't index the TermOS fortunes"
+
 # Use the TermOS fastfetch config for every user.
 mkdir -p /etc/xdg/fastfetch
 cp /usr/share/termos/fastfetch/config.jsonc /etc/xdg/fastfetch/config.jsonc

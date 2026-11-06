@@ -86,6 +86,9 @@ write_ks() {
     embed "$repo/branding/kde/zz-termos-wallpaper.js" \
         /usr/share/plasma/shells/org.kde.plasma.desktop/contents/updates/zz-termos-wallpaper.js 0644
     embed "$repo/branding/kde/kscreenlockerrc"      /etc/xdg/kscreenlockerrc 0644
+    # Easter eggs: TermOS fortunes (indexed in %post) and a GRUB command.
+    embed "$repo/branding/fortune/termos"           /usr/share/games/fortune/termos 0644
+    embed "$repo/branding/grub/42_termos"           /etc/grub.d/42_termos 0755
     # GRUB theme (turned on by the template's %post).
     embed_tree "$repo/branding/grub/termos"             /usr/share/termos/grub/termos
     embed "$repo/branding/grub/install-grub-theme.sh" \

@@ -16,6 +16,8 @@ DESTDIR ?=
 BINDIR   = $(DESTDIR)$(PREFIX)/bin
 SHAREDIR = $(DESTDIR)$(PREFIX)/share/termos
 WALLDIR  = $(DESTDIR)$(PREFIX)/share/wallpapers/TermOS
+# fortune only looks in its own directory, whatever PREFIX is.
+FORTUNEDIR = $(DESTDIR)/usr/share/games/fortune
 
 SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh
 
@@ -34,12 +36,15 @@ install:
 	install -Dm644 branding/wallpaper/metadata.json $(WALLDIR)/metadata.json
 	install -Dm644 -t $(WALLDIR)/contents           branding/wallpaper/contents/screenshot.png
 	install -Dm644 -t $(WALLDIR)/contents/images    branding/wallpaper/contents/images/*.png
+	install -Dm644 branding/fortune/termos          $(FORTUNEDIR)/termos
+	if command -v strfile >/dev/null; then strfile $(FORTUNEDIR)/termos >/dev/null; fi
 
 install-splash:
 	install -Dm644 -t $(DESTDIR)/usr/share/plymouth/themes/termos branding/plymouth/termos/*
 	plymouth-set-default-theme -R termos
 
 install-grub:
+	install -Dm755 branding/grub/42_termos $(DESTDIR)/etc/grub.d/42_termos
 	branding/grub/install-grub-theme.sh branding/grub/termos --mkconfig
 
 art:
@@ -48,6 +53,7 @@ art:
 uninstall:
 	rm -f  $(BINDIR)/termos-fetch $(BINDIR)/termos-run
 	rm -rf $(SHAREDIR) $(WALLDIR)
+	rm -f  $(FORTUNEDIR)/termos $(FORTUNEDIR)/termos.dat
 
 iso:
 	sudo iso/build-iso.sh

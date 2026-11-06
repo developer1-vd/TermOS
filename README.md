@@ -160,6 +160,29 @@ sudo make install-grub
 
 Then choose **TermOS** in System Settings → Wallpaper.
 
+## Easter eggs
+
+TermOS has a few easter eggs hidden around the system. Hint: follow the white
+rabbit, and don't forget to check the date.
+
+<details>
+<summary>Spoilers</summary>
+
+- `termos-fetch --rain`: green digital rain in your terminal. Press any key to stop.
+- `termos-fetch --red-pill` (or `termos-run red-pill`): wake up, Neo... then the rain.
+- `termos-fetch --blue-pill`: the story ends.
+- `termos-fetch --spoon`: there isn't one.
+- `termos-run termite`, `termos-run teapot`, `termos-run termos-run`, `termos-run rabbit`:
+  try them.
+- `fortune termos`: TermOS's own fortunes. They also turn up now and then in
+  termite mode (`fortune | termos-fetch`).
+- On **April 1**, `termos-fetch` shows the termite instead of the Matrix logo.
+- On **November 5**, TermOS's birthday, `termos-fetch` wishes it a happy birthday.
+  (Set `TERMOS_TODAY=04-01` or `11-05` to see them any day.)
+- At the **GRUB boot menu**, press `c` for the command line and type `rabbit`.
+
+</details>
+
 ## Building the ISO
 
 TermOS builds a bootable live ISO from Fedora with a kickstart file
@@ -295,9 +318,10 @@ config/fastfetch/config.jsonc  fastfetch config using the Matrix logo
 config/neofetch/config.conf    neofetch config using the Matrix logo
 branding/wallpaper/            KDE wallpaper package (desktop + phone sizes)
 branding/plymouth/termos/      Plymouth boot splash theme
-branding/grub/                 GRUB theme and its install script
+branding/grub/                 GRUB theme, its install script and a GRUB easter egg
 branding/kde/                  KDE defaults (wallpaper, lock screen)
 branding/calamares/            Calamares installer settings and branding
+branding/fortune/termos        TermOS fortunes (easter egg)
 branding/make-art.py           generates the wallpaper, splash, GRUB and installer images
 iso/termos.ks.in               kickstart template for the live ISO
 iso/build-iso.sh               ISO builder

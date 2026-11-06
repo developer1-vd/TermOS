@@ -21,13 +21,24 @@ else
     conf="$share"
 fi
 
+# Today as MM-DD. TERMOS_TODAY overrides it, so the date surprises can be tested.
+today="${TERMOS_TODAY:-$(date +%m-%d)}"
+
 matrix_mode() {
+    local logo="$share/logo-matrix.txt" color=green
+    case "$today" in
+        04-01)  # April Fools': the termites got into the Matrix.
+            logo="$share/logo-termite.txt"; color=yellow
+            echo "Wake up, Neo... the termites have gotten into the mainframe." ;;
+        11-05)  # TermOS's birthday (its first commit).
+            echo "Happy birthday, TermOS! Another year of green rain." ;;
+    esac
     if command -v fastfetch >/dev/null; then
         exec fastfetch --config "$conf/fastfetch/config.jsonc" \
-            --logo "$share/logo-matrix.txt" --logo-type file --logo-color-1 green
+            --logo "$logo" --logo-type file --logo-color-1 "$color"
     elif command -v neofetch >/dev/null; then
         exec neofetch --config "$conf/neofetch/config.conf" \
-            --ascii "$share/logo-matrix.txt" --ascii_colors 2
+            --ascii "$logo" --ascii_colors "$([[ $color == green ]] && echo 2 || echo 3)"
     else
         echo "termos-fetch: install fastfetch or neofetch" >&2
         exit 1
@@ -45,11 +56,16 @@ termite_mode() {
             [[ -n "$line" ]] && fortunes+=("$line")
         done
     fi
-    # Top up with fresh fortunes if we have fewer than we need.
+    # Top up with fresh fortunes if we have fewer than we need. Now and then
+    # one comes from TermOS's own fortune file, if it's installed.
     local given=${#fortunes[@]}
     while (( ${#fortunes[@]} < ${#labels[@]} )); do
         if command -v fortune >/dev/null; then
-            line="$(fortune -s -n 60 | tr -s '\n\t ' ' ')"
+            line=""
+            if (( RANDOM % 3 == 0 )); then
+                line="$(fortune -s -n 60 termos 2>/dev/null | tr -s '\n\t ' ' ')" || line=""
+            fi
+            [[ -n "$line" ]] || line="$(fortune -s -n 60 | tr -s '\n\t ' ' ')"
             fortunes+=("${line% }")
         elif (( given == 0 )); then
             echo "termos-fetch: install fortune (fortune-mod) or pipe text in" >&2
@@ -78,7 +94,75 @@ termite_mode() {
     done
 }
 
+# ---- Easter eggs ------------------------------------------------------------
+
+# Type a line slowly, like a terminal in a certain 1999 film.
+slow_type() {
+    local text="$1" i
+    for (( i = 0; i < ${#text}; i++ )); do
+        printf '%s' "${text:i:1}"
+        sleep 0.04
+    done
+    printf '\n'
+}
+
+# Green digital rain in the terminal until a key is pressed.
+rain() {
+    [[ -t 1 ]] || { echo "termos-fetch: the rain only falls in a terminal" >&2; exit 1; }
+    local cols lines c h t key glyphs=01 out
+    cols=$(tput cols); lines=$(tput lines)
+    local -a y len
+    for (( c = 0; c < cols; c += 2 )); do
+        y[c]=$(( RANDOM % lines - lines ))
+        len[c]=$(( RANDOM % (lines / 2 + 1) + 4 ))
+    done
+    # Alternate screen + hidden cursor, restored however we exit.
+    printf '\e[?1049h\e[?25l\e[2J'
+    trap 'printf "\e[0m\e[?25h\e[?1049l"' EXIT
+    trap 'exit 0' INT TERM
+    while :; do
+        out=""
+        for (( c = 0; c < cols; c += 2 )); do
+            h=${y[c]}
+            # The old head turns green, a new bright head appears below it,
+            # and the end of the tail is erased.
+            (( h - 1 >= 0 && h - 1 < lines )) && out+="\e[${h};$(( c + 1 ))H\e[0;32m${glyphs:RANDOM%2:1}"
+            (( h >= 0 && h < lines )) && out+="\e[$(( h + 1 ));$(( c + 1 ))H\e[1;97m${glyphs:RANDOM%2:1}"
+            t=$(( h - len[c] ))
+            (( t >= 0 && t < lines )) && out+="\e[$(( t + 1 ));$(( c + 1 ))H "
+            y[c]=$(( h + 1 ))
+            if (( t >= lines )); then
+                y[c]=$(( -(RANDOM % lines) ))
+                len[c]=$(( RANDOM % (lines / 2 + 1) + 4 ))
+            fi
+        done
+        printf '%b' "$out"
+        if IFS= read -rsn1 -t 0.05 key; then break; fi
+    done
+}
+
+red_pill() {
+    local green=$'\e[1;32m' reset=$'\e[0m'
+    [[ -t 1 ]] || { green=; reset=; }
+    printf '%s' "$green"
+    slow_type "Wake up, Neo..."; sleep 1
+    slow_type "The Matrix has you..."; sleep 1
+    slow_type "Follow the white rabbit."; sleep 1
+    printf '%s\n' "$reset"
+    slow_type "Knock, knock."; sleep 1
+    rain
+}
+
+blue_pill() {
+    echo "The story ends. You wake up in your bed and believe whatever you want to believe."
+    echo "(Your computer still runs TermOS, though.)"
+}
+
 case "${1:-}" in
+    --rain)                  rain ;;
+    --red-pill|--redpill)    red_pill ;;
+    --blue-pill|--bluepill)  blue_pill ;;
+    --spoon)                 echo "There is no spoon." ;;
     --fortune) termite_mode ;;
     -h|--help) sed -n '2,7s/^# \{0,1\}//p' "$0" ;;
     *) if [[ -t 0 ]]; then matrix_mode; else termite_mode stdin; fi ;;

@@ -35,6 +35,34 @@ run_nix() {
     exec nix --extra-experimental-features 'nix-command flakes' run "$1" -- "${@:2}"
 }
 
+# ---- Easter eggs (only when no file by that name exists) --------------------
+
+fetch() {
+    local f
+    f="$(dirname "$(realpath -- "$0")")/termos-fetch"
+    [[ -x "$f" ]] || f=termos-fetch
+    exec "$f" "$@"
+}
+
+if [[ ! -e "$app" ]]; then
+    case "$app" in
+        termite|termites)
+            echo "termos-run: refusing to run a termite. They eat wood, and this computer has a wooden heart."
+            echo "(They're welcome in termite mode, though: fortune | termos-fetch)"
+            exit 0 ;;
+        teapot|coffee|tea)
+            echo "termos-run: 418 I'm a teapot. Short and stout, but no app to run."
+            exit 0 ;;
+        termos-run)
+            echo "termos-run: running termos-run in termos-run... it's termos-run all the way down."
+            exit 0 ;;
+        red-pill|redpill)    fetch --red-pill ;;
+        blue-pill|bluepill)  fetch --blue-pill ;;
+        rabbit|white-rabbit) echo "Follow it: termos-run red-pill"; exit 0 ;;
+        spoon)               fetch --spoon ;;
+    esac
+fi
+
 if [[ ! -e "$app" ]]; then
     case "$app" in
         nix:*)  run_nix "nixpkgs#${app#nix:}" "$@" ;;
