@@ -12,8 +12,8 @@ jobs:
       - name: Install shellcheck and pykickstart
         run: |
           sudo apt-get update
-          sudo apt-get install -y shellcheck python3-pip
-          pip install --user pykickstart
+          sudo apt-get install -y shellcheck
+          pipx install pykickstart
       - name: Lint
         run: make lint
 
@@ -25,4 +25,9 @@ jobs:
       - name: Build flake
         run: nix build .#termos
       - name: Termite mode smoke test
-        run: printf 'One.\nTwo.\nThree.\n' | ./result/bin/termos-fetch | grep -q 'Kernel: Three.'
+        run: |
+          printf 'One.\nTwo.\nThree.\n' | ./result/bin/termos-fetch | grep -q 'Kernel: Three.'
+      - name: Version and easter egg smoke test
+        run: |
+          ./result/bin/termos-fetch --version < /dev/null | grep -qx "TermOS $(cat VERSION)"
+          ./result/bin/termos-run teapot | grep -q "418"

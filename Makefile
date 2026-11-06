@@ -19,7 +19,9 @@ WALLDIR  = $(DESTDIR)$(PREFIX)/share/wallpapers/TermOS
 # fortune only looks in its own directory, whatever PREFIX is.
 FORTUNEDIR ?= $(DESTDIR)/usr/share/games/fortune
 
-SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh
+SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh \
+           branding/grub/install-grub-theme.sh branding/grub/42_termos \
+           branding/calamares/termos-live-desktop.sh
 
 .PHONY: all install uninstall install-splash install-grub art iso iso-container ks lint clean
 
@@ -66,7 +68,7 @@ ks:
 	iso/build-iso.sh --ks-only
 
 lint: ks
-	bash -n $(SCRIPTS)
+	for f in $(SCRIPTS); do bash -n "$$f" || exit 1; done
 	shellcheck $(SCRIPTS)
 	ksvalidator build/termos.ks
 
