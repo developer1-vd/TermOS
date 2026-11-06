@@ -17,12 +17,16 @@ shutdown
 
 zerombr
 clearpart --all
-part / --size 14336 --fstype ext4
+# Room for Fedora 45 KDE plus the extras; the image is sparse, so unused
+# space costs nothing (14 GB was too small for Fedora 45).
+part / --size 20480 --fstype ext4
 bootloader --location=none
 
-# livemedia-creator needs a plain base URL here (it can't use --mirrorlist).
-url --url=https://download.fedoraproject.org/pub/fedora/linux/releases/@@RELEASE@@/Everything/$basearch/os/
-repo --name=updates --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f@@RELEASE@@&arch=$basearch
+# Metalinks, like dnf's defaults: if a mirror is broken or out of date, the
+# download moves on to the next one. (A single redirector URL has no such
+# fallback, and builds failed with "Failed to download packages".)
+url --metalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-@@RELEASE@@&arch=$basearch
+repo --name=updates --metalink=https://mirrors.fedoraproject.org/metalink?repo=updates-released-f@@RELEASE@@&arch=$basearch
 
 %packages --ignoremissing
 # Fedora base with the KDE Plasma desktop.
