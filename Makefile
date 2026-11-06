@@ -17,7 +17,7 @@ BINDIR   = $(DESTDIR)$(PREFIX)/bin
 SHAREDIR = $(DESTDIR)$(PREFIX)/share/termos
 WALLDIR  = $(DESTDIR)$(PREFIX)/share/wallpapers/TermOS
 # fortune only looks in its own directory, whatever PREFIX is.
-FORTUNEDIR = $(DESTDIR)/usr/share/games/fortune
+FORTUNEDIR ?= $(DESTDIR)/usr/share/games/fortune
 
 SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh
 

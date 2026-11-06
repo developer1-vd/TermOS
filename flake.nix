@@ -14,10 +14,10 @@
           pname = "termos";
           version = nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./VERSION);
           src = ./.;
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeBuildInputs = [ pkgs.makeWrapper pkgs.fortune ];
           dontBuild = true;
           installPhase = ''
-            make install PREFIX=$out
+            make install PREFIX=$out FORTUNEDIR=$out/share/games/fortune
             wrapProgram $out/bin/termos-fetch \
               --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.fastfetch pkgs.fortune ]}
             wrapProgram $out/bin/termos-run \
