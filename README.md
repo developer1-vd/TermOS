@@ -4,6 +4,9 @@ TermOS is a Linux distribution that combines **Fedora**, **Ubuntu** and **Nix**,
 
 > The name doesn't mean anything. It's not a terminal OS. TermOS is just a cool name.
 
+**Current release: TermOS v0.1**, the first release, based on **Fedora 45**.
+See [CHANGELOG.md](CHANGELOG.md) for what's in it.
+
 ## The three parts
 
 | Part       | What TermOS takes from it                                                   |
@@ -245,24 +248,26 @@ make iso
 make iso-container
 ```
 
-The ISO is written to `build/out/TermOS-<release>-x86_64.iso`. A build needs
+The ISO is written to `build/out/TermOS-<version>-x86_64.iso` (for v0.1,
+`TermOS-0.1-x86_64.iso`). A build needs
 root (or a privileged container), about 15 GB of free disk space and a network
 connection to the Fedora mirrors. The build machine's kernel also needs loop
 devices and FAT (vfat) support, which normal Fedora installs and GitHub's runners
 have; some minimal VMs and sandboxes don't, and the build then fails at the
 `mkefiboot` step.
 
-TermOS is based on Fedora 44 by default; set `TERMOS_RELEASE` to change that:
+TermOS v0.1 is based on Fedora 45. To try a different Fedora release, set
+`TERMOS_RELEASE`:
 
 ```bash
-TERMOS_RELEASE=45 make iso-container
+TERMOS_RELEASE=46 make iso-container
 ```
 
 To write the ISO to a USB stick, use Fedora Media Writer, or `dd` (this erases the
 stick, so double-check the device name):
 
 ```bash
-sudo dd if=build/out/TermOS-44-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
+sudo dd if=build/out/TermOS-0.1-x86_64.iso of=/dev/sdX bs=4M status=progress oflag=sync
 ```
 
 You can also build ISOs from GitHub: run the **Build ISO** workflow from the
@@ -327,6 +332,8 @@ iso/termos.ks.in               kickstart template for the live ISO
 iso/build-iso.sh               ISO builder
 flake.nix                      Nix package, apps and dev shell
 Makefile                       install, iso, lint and clean targets
+VERSION                        the TermOS version (0.1)
+CHANGELOG.md                   what changed in each release
 .github/workflows/             CI (lint, Nix build) and the manual ISO build
 ```
 

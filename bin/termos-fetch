@@ -4,6 +4,7 @@
 #   termos-fetch              matrix logo + real stats (fastfetch, else neofetch)
 #   fortune | termos-fetch    termite logo, every stat is a fortune
 #   termos-fetch --fortune    same, but runs fortune itself
+#   termos-fetch --version    print the TermOS version
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,6 +22,18 @@ else
     conf="$share"
 fi
 
+# The TermOS version: from the installed system, else the VERSION file.
+termos_version() {
+    if [[ -r /etc/termos-release ]]; then
+        # shellcheck source=/dev/null
+        (. /etc/termos-release && echo "${VERSION_ID:-}")
+    elif [[ -f "$share/VERSION" ]]; then
+        tr -d '[:space:]' < "$share/VERSION"
+    elif [[ -f "$script_dir/../VERSION" ]]; then
+        tr -d '[:space:]' < "$script_dir/../VERSION"
+    fi
+}
+
 # Today as MM-DD. TERMOS_TODAY overrides it, so the date surprises can be tested.
 today="${TERMOS_TODAY:-$(date +%m-%d)}"
 
@@ -33,11 +46,21 @@ matrix_mode() {
         11-05)  # TermOS's birthday (its first commit).
             echo "Happy birthday, TermOS! Another year of green rain." ;;
     esac
+    local version
+    version="$(termos_version)"
     if command -v fastfetch >/dev/null; then
-        exec fastfetch --config "$conf/fastfetch/config.jsonc" \
-            --logo "$logo" --logo-type file --logo-color-1 "$color"
+        # fastfetch can't set a module's format on the command line, so put
+        # the version into a temporary copy of the config.
+        local config
+        config="$(mktemp --suffix=.jsonc)"
+        sed "s/\"TermOS (/\"TermOS${version:+ $version} (/" "$conf/fastfetch/config.jsonc" > "$config"
+        local rc=0
+        fastfetch --config "$config" \
+            --logo "$logo" --logo-type file --logo-color-1 "$color" || rc=$?
+        rm -f "$config"
+        exit "$rc"
     elif command -v neofetch >/dev/null; then
-        exec neofetch --config "$conf/neofetch/config.conf" \
+        TERMOS_VERSION="$version" exec neofetch --config "$conf/neofetch/config.conf" \
             --ascii "$logo" --ascii_colors "$([[ $color == green ]] && echo 2 || echo 3)"
     else
         echo "termos-fetch: install fastfetch or neofetch" >&2
@@ -163,7 +186,8 @@ case "${1:-}" in
     --red-pill|--redpill)    red_pill ;;
     --blue-pill|--bluepill)  blue_pill ;;
     --spoon)                 echo "There is no spoon." ;;
+    --version)               echo "TermOS $(termos_version)" ;;
     --fortune) termite_mode ;;
-    -h|--help) sed -n '2,7s/^# \{0,1\}//p' "$0" ;;
+    -h|--help) sed -n '2,8s/^# \{0,1\}//p' "$0" ;;
     *) if [[ -t 0 ]]; then matrix_mode; else termite_mode stdin; fi ;;
 esac

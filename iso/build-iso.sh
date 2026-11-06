@@ -6,7 +6,7 @@
 #   iso/build-iso.sh --ks-only          only write build/termos.ks
 #
 # Environment:
-#   TERMOS_RELEASE   Fedora release to base on (default: host's, else 44)
+#   TERMOS_RELEASE   Fedora release to base on (default: 45)
 #   TERMOS_ARCH      architecture (default: x86_64)
 #   TERMOS_DARLING   1 to preinstall Darling for macOS apps (default), 0 to skip
 #
@@ -20,17 +20,12 @@ ks="$build/termos.ks"
 
 die() { echo "build-iso: $*" >&2; exit 1; }
 
-default_release() {
-    if [[ -r /etc/os-release ]] && grep -q '^ID=fedora' /etc/os-release; then
-        # shellcheck source=/dev/null
-        . /etc/os-release; echo "$VERSION_ID"
-    else
-        echo 44
-    fi
-}
-release="${TERMOS_RELEASE:-$(default_release)}"
+# TermOS's own version (VERSION file), and the Fedora release it's built on.
+version="$(tr -d '[:space:]' < "$repo/VERSION")"
+release="${TERMOS_RELEASE:-45}"
 arch="${TERMOS_ARCH:-x86_64}"
 darling="${TERMOS_DARLING:-1}"
+[[ "$version" =~ ^[0-9]+(\.[0-9]+)*$ ]] || die "VERSION must look like 0.1, got '$version'"
 [[ "$release" =~ ^[0-9]+$ ]] || die "TERMOS_RELEASE must be a Fedora release number, got '$release'"
 
 # Append a heredoc to the kickstart that recreates $src at $dest on the image.
@@ -42,7 +37,7 @@ embed() {
         echo "mkdir -p '$(dirname "$dest")'"
         if grep -qI . "$src"; then
             echo "cat > '$dest' <<'$tag'"
-            cat "$src"
+            sed -e "s/@@VERSION@@/$version/g" -e "s/@@RELEASE@@/$release/g" "$src"
         else
             echo "base64 -d > '$dest' <<'$tag'"
             base64 -w 76 "$src"
@@ -64,7 +59,8 @@ write_ks() {
     mkdir -p "$build"
     local strip='/^# @@DARLING_BEGIN@@$/,/^# @@DARLING_END@@$/d'
     [[ "$darling" == 0 ]] || strip='/^# @@DARLING_\(BEGIN\|END\)@@$/d'
-    sed -e "s/@@RELEASE@@/$release/g" -e "$strip" "$repo/iso/termos.ks.in" > "$ks"
+    sed -e "s/@@RELEASE@@/$release/g" -e "s/@@VERSION@@/$version/g" -e "$strip" \
+        "$repo/iso/termos.ks.in" > "$ks"
     # Put our %post first: kickstart runs %post sections in file order, so
     # insert it right before the template's first %post.
     local files_ks="$build/files.ks"
@@ -110,7 +106,7 @@ write_ks() {
         { print }
     ' "$ks" > "$ks.tmp" && mv "$ks.tmp" "$ks"
     rm -f "$files_ks"
-    echo "build-iso: wrote $ks (Fedora $release, Darling: $([[ "$darling" == 0 ]] && echo no || echo yes))"
+    echo "build-iso: wrote $ks (TermOS $version on Fedora $release, Darling: $([[ "$darling" == 0 ]] && echo no || echo yes))"
 }
 
 # The ISO's own boot menus come from lorax's live templates. Copy them and
@@ -141,6 +137,8 @@ CFG
     for cfg in "$dest"/live/config_files/x86/grub2-bios.cfg "$dest"/live/config_files/x86/grub2-efi.cfg; do
         grep -q "^search .*@ISOLABEL@" "$cfg" || die "unexpected lorax template: $cfg"
         sed -i "/^search .*@ISOLABEL@/r $theme_block" "$cfg"
+        # Menu entries say "Start TermOS 0.1" rather than the Fedora release.
+        sed -i "s/@VERSION@/$version/g" "$cfg"
     done
     # Put the theme on the ISO next to the BIOS grub.cfg; UEFI GRUB finds it
     # there too, since both menus search for the ISO by label first.
@@ -167,11 +165,11 @@ build_host() {
         --iso-only \
         --project TermOS \
         --releasever "$release" \
-        --volid "TermOS-$release" \
-        --iso-name "TermOS-$release-$arch.iso" \
+        --volid "TermOS-$version" \
+        --iso-name "TermOS-$version-$arch.iso" \
         --resultdir "$build/out" \
         --logfile "$build/livemedia.log"
-    echo "build-iso: done: $build/out/TermOS-$release-$arch.iso"
+    echo "build-iso: done: $build/out/TermOS-$version-$arch.iso"
 }
 
 build_container() {

@@ -29,6 +29,7 @@ all:
 install:
 	install -Dm755 bin/termos-fetch               $(BINDIR)/termos-fetch
 	install -Dm755 bin/termos-run                 $(BINDIR)/termos-run
+	install -Dm644 VERSION                        $(SHAREDIR)/VERSION
 	install -Dm644 branding/logo-matrix.txt       $(SHAREDIR)/logo-matrix.txt
 	install -Dm644 branding/logo-termite.txt      $(SHAREDIR)/logo-termite.txt
 	install -Dm644 config/fastfetch/config.jsonc  $(SHAREDIR)/fastfetch/config.jsonc

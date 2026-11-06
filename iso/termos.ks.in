@@ -143,7 +143,7 @@ cp /usr/share/termos/fastfetch/config.jsonc /etc/xdg/fastfetch/config.jsonc
 
 # Greeting.
 cat > /etc/motd <<'MOTD'
-Welcome to TermOS: Fedora + Ubuntu + Nix.
+Welcome to TermOS @@VERSION@@: Fedora + Ubuntu + Nix.
 Run `termos-fetch`, or `fortune | termos-fetch` if you're feeling lucky.
 Run Windows, macOS, BSD, Nix and Ubuntu apps with `termos-run`.
 MOTD
@@ -151,8 +151,9 @@ MOTD
 # A tiny "about" file other tools can read.
 cat > /etc/termos-release <<REL
 NAME=TermOS
-VERSION_ID=@@RELEASE@@
-BASE=Fedora Linux @@RELEASE@@
+VERSION_ID=@@VERSION@@
+PRETTY_NAME="TermOS @@VERSION@@"
+BASE="Fedora Linux @@RELEASE@@"
 DESKTOP=KDE Plasma
 REL
 %end

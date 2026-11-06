@@ -15,10 +15,11 @@ navigation: widget
 strings:
     productName:         TermOS
     shortProductName:    TermOS
-    version:             "${VERSION_ID}"
-    shortVersion:        "${VERSION_ID}"
-    versionedName:       "TermOS ${VERSION_ID}"
-    shortVersionedName:  "TermOS ${VERSION_ID}"
+    # @@VERSION@@ is filled in from the VERSION file when the ISO is built.
+    version:             "@@VERSION@@"
+    shortVersion:        "@@VERSION@@"
+    versionedName:       "TermOS @@VERSION@@"
+    shortVersionedName:  "TermOS @@VERSION@@"
     bootloaderEntryName: TermOS
     productUrl:          https://github.com/developer1-vd/TermOS
     supportUrl:          https://github.com/developer1-vd/TermOS/issues

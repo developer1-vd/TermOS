@@ -12,7 +12,7 @@
       packages = forAll (pkgs: rec {
         termos = pkgs.stdenvNoCC.mkDerivation {
           pname = "termos";
-          version = "0.1.0";
+          version = nixpkgs.lib.removeSuffix "\n" (builtins.readFile ./VERSION);
           src = ./.;
           nativeBuildInputs = [ pkgs.makeWrapper ];
           dontBuild = true;

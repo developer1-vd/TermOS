@@ -6,7 +6,7 @@ on:
     inputs:
       release:
         description: Fedora release to base on
-        default: "44"
+        default: "45"
 
 jobs:
   iso:
@@ -19,7 +19,10 @@ jobs:
         env:
           TERMOS_RELEASE: ${{ inputs.release }}
         run: iso/build-iso.sh --container
+      - name: Read the TermOS version
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: TermOS-${{ inputs.release }}-x86_64
+          name: TermOS-${{ steps.version.outputs.version }}-fedora${{ inputs.release }}-x86_64
           path: build/out/*.iso
