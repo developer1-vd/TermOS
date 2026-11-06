@@ -9,6 +9,9 @@
 #   TERMOS_RELEASE   Fedora release to base on (default: 45)
 #   TERMOS_ARCH      architecture (default: x86_64)
 #   TERMOS_DARLING   1 to preinstall Darling for macOS apps (default), 0 to skip
+#   TERMOS_ENGINE    --container only: podman or docker (default: podman if installed)
+#   TERMOS_WORKDIR   --container only: host directory for the build's scratch
+#                    space (/var/tmp in the container), e.g. on a bigger disk
 #
 # The ISO lands in build/out/. A full build needs ~15 GB of free disk space,
 # root, loop devices, and a network connection to the Fedora mirrors.
@@ -173,12 +176,24 @@ build_host() {
 }
 
 build_container() {
-    local engine
-    engine="$(command -v podman || command -v docker)" || die "install podman or docker"
+    local engine="${TERMOS_ENGINE:-}" extra=()
+    if [[ -z "$engine" ]]; then
+        engine="$(command -v podman || command -v docker)" || die "install podman or docker"
+    fi
+    engine="$(command -v "$engine")" || die "container engine not found: ${TERMOS_ENGINE:-}"
+    # Rootless podman can't set up the loop devices the build needs.
+    if [[ "$(basename "$engine")" == podman && $EUID -ne 0 ]]; then
+        die "podman needs root for this build: use sudo, or TERMOS_ENGINE=docker"
+    fi
+    if [[ -n "${TERMOS_WORKDIR:-}" ]]; then
+        mkdir -p "$TERMOS_WORKDIR"
+        extra+=(-v "$TERMOS_WORKDIR:/var/tmp:z")
+    fi
     write_ks
     "$engine" run --rm --privileged \
         -v /dev:/dev \
         -v "$repo:/src:z" \
+        "${extra[@]}" \
         -e TERMOS_RELEASE="$release" -e TERMOS_ARCH="$arch" -e TERMOS_DARLING="$darling" \
         "registry.fedoraproject.org/fedora:$release" \
         bash -c 'dnf install -y lorax anaconda-tui && /src/iso/build-iso.sh'

@@ -1,28 +1,114 @@
 name: Build ISO
 
-# Manual only: a full ISO build is large and slow.
+# Manual only: a full ISO build is large and slow (about an hour).
 on:
   workflow_dispatch:
     inputs:
       release:
         description: Fedora release to base on
         default: "45"
+      publish:
+        description: Publish the ISO to the GitHub release for this version (tag v<VERSION>)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # only used to create the release and upload the ISO
 
 jobs:
   iso:
     runs-on: ubuntu-latest
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
-      - name: Free disk space
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
-      - name: Build ISO in a Fedora container
-        env:
-          TERMOS_RELEASE: ${{ inputs.release }}
-        run: iso/build-iso.sh --container
+
       - name: Read the TermOS version
         id: version
         run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          df -h / /mnt
+
+      # Docker runs the Fedora build container as root, which loop devices
+      # need. The build's scratch space goes on /mnt, the runner's bigger disk.
+      - name: Build ISO in a Fedora container
+        env:
+          TERMOS_RELEASE: ${{ inputs.release }}
+          TERMOS_ENGINE: docker
+          TERMOS_WORKDIR: /mnt/termos-build
+        run: |
+          sudo mkdir -p "$TERMOS_WORKDIR"
+          iso/build-iso.sh --container
+          ls -l build/out
+
+      # GitHub release files must be under 2 GiB, so a bigger ISO is split
+      # into parts that are joined again with cat.
+      - name: Prepare release files
+        id: files
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          dir="$RUNNER_TEMP/release"
+          mkdir -p "$dir"
+          iso="TermOS-$VERSION-x86_64.iso"
+          cp "build/out/$iso" "$dir/"
+          cd "$dir"
+          sha256sum "$iso" > SHA256SUMS
+          if [ "$(stat -c %s "$iso")" -gt 2000000000 ]; then
+            split -b 1900M -d -a 1 "$iso" "$iso.part"
+            rm "$iso"
+            sha256sum "$iso".part* >> SHA256SUMS
+          fi
+          ls -l
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v4
         with:
           name: TermOS-${{ steps.version.outputs.version }}-fedora${{ inputs.release }}-x86_64
-          path: build/out/*.iso
+          path: ${{ steps.files.outputs.dir }}/*
+          compression-level: 0
+
+      - name: Publish to the GitHub release
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          FEDORA: ${{ inputs.release }}
+        run: |
+          tag="v$VERSION"
+          iso="TermOS-$VERSION-x86_64.iso"
+          notes="$RUNNER_TEMP/notes.md"
+          {
+            echo "TermOS $VERSION, based on Fedora $FEDORA."
+            echo
+            # This version's section of CHANGELOG.md, without its heading.
+            awk -v v="## v$VERSION" '$0 ~ "^"v {f=1; next} f && /^## / {exit} f' CHANGELOG.md
+            echo
+            echo "## Download"
+            echo
+            if ls "${{ steps.files.outputs.dir }}"/"$iso".part* >/dev/null 2>&1; then
+              echo "The ISO is split into parts (GitHub limits release files to 2 GiB)."
+              echo "Download every \`$iso.part*\` file and \`SHA256SUMS\`, then join and check them:"
+              echo
+              echo '```bash'
+              echo "cat $iso.part* > $iso"
+              echo "sha256sum --check --ignore-missing SHA256SUMS"
+              echo '```'
+            else
+              echo "Download \`$iso\` and \`SHA256SUMS\`, then check it:"
+              echo
+              echo '```bash'
+              echo "sha256sum --check --ignore-missing SHA256SUMS"
+              echo '```'
+            fi
+            echo
+            echo "Write it to a USB stick with Fedora Media Writer, then boot from it and double-click **Install TermOS**."
+          } > "$notes"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --notes-file "$notes"
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --title "TermOS $VERSION" --notes-file "$notes"
+          fi
+          gh release upload "$tag" --clobber "${{ steps.files.outputs.dir }}"/*
