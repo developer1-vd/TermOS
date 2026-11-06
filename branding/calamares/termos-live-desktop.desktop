@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=TermOS live desktop
+Exec=/usr/libexec/termos/termos-live-desktop.sh
+NoDisplay=true
+OnlyShowIn=KDE;
+X-KDE-autostart-phase=1

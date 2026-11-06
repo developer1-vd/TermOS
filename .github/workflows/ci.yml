@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck and pykickstart
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          pipx install pykickstart
+      - name: Lint
+        run: make lint
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Build flake
+        run: nix build .#termos
+      - name: Termite mode smoke test
+        run: |
+          printf 'One.\nTwo.\nThree.\n' | ./result/bin/termos-fetch | grep -q 'Kernel: Three.'
+      - name: Version and easter egg smoke test
+        run: |
+          ./result/bin/termos-fetch --version < /dev/null | grep -qx "TermOS $(cat VERSION)"
+          ./result/bin/termos-run teapot | grep -q "418"

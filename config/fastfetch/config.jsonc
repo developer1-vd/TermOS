@@ -1,0 +1,30 @@
+// TermOS fastfetch config: matrix logo.
+// Install to ~/.config/fastfetch/config.jsonc (or /usr/share/termos/fastfetch/).
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "file",
+    "source": "/usr/share/termos/logo-matrix.txt",
+    "color": { "1": "green" }
+  },
+  "display": {
+    "color": { "keys": "green", "title": "green" }
+  },
+  "modules": [
+    "title",
+    "separator",
+    { "type": "os", "format": "TermOS ({name} {version})" },
+    "host",
+    "kernel",
+    "uptime",
+    "packages",
+    "shell",
+    "terminal",
+    "cpu",
+    "gpu",
+    "memory",
+    "disk",
+    "break",
+    "colors"
+  ]
+}

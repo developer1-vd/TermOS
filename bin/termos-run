@@ -1,0 +1,174 @@
+#!/usr/bin/env bash
+# termos-run: run an app on TermOS, whatever it was built for.
+#
+#   termos-run app.exe [args]       Windows app       -> Wine
+#   termos-run setup.msi            Windows installer -> Wine (msiexec)
+#   termos-run ./mac-binary [args]  macOS (Mach-O)    -> Darling, else a Mac over SSH
+#   termos-run Foo.app [args]       macOS app bundle  -> Darling, else a Mac over SSH
+#   termos-run Foo.pkg | Foo.dmg    macOS installer   -> Darling
+#   termos-run ./bsd-binary [args]  BSD binary        -> BSD VM over SSH
+#   termos-run nixpkgs#hello [args] Nix flake ref     -> nix run
+#   termos-run nix:hello [args]     Nix package       -> nix run nixpkgs#hello
+#   termos-run ./my-flake [args]    dir with flake.nix -> nix run
+#   termos-run app.deb              Ubuntu package    -> installed in the Ubuntu Distrobox
+#   termos-run ./linux-binary       Linux binary      -> run directly
+#
+# BSD and macOS binaries can't run on the Linux kernel directly. BSD apps run
+# on a BSD VM at TERMOS_BSD_HOST (default: termos-bsd). macOS apps run in
+# Darling (darlinghq.org) if it is installed, otherwise on a Mac at
+# TERMOS_MAC_HOST (default: termos-mac). Both hosts are reached over SSH.
+set -euo pipefail
+
+usage() { sed -n '2,19s/^# \{0,1\}//p' "$0"; }
+die() { echo "termos-run: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null || die "$1 is not installed ($2)"; }
+
+[[ $# -ge 1 ]] || { usage; exit 1; }
+case "$1" in -h|--help) usage; exit 0 ;; esac
+
+app="$1"; shift
+
+# ---- Nix --------------------------------------------------------------------
+
+run_nix() {
+    need nix "see https://nixos.org/download"
+    exec nix --extra-experimental-features 'nix-command flakes' run "$1" -- "${@:2}"
+}
+
+# ---- Easter eggs (only when no file by that name exists) --------------------
+
+fetch() {
+    local f
+    f="$(dirname "$(realpath -- "$0")")/termos-fetch"
+    [[ -x "$f" ]] || f=termos-fetch
+    exec "$f" "$@"
+}
+
+if [[ ! -e "$app" ]]; then
+    case "$app" in
+        termite|termites)
+            echo "termos-run: refusing to run a termite. They eat wood, and this computer has a wooden heart."
+            echo "(They're welcome in termite mode, though: fortune | termos-fetch)"
+            exit 0 ;;
+        teapot|coffee|tea)
+            echo "termos-run: 418 I'm a teapot. Short and stout, but no app to run."
+            exit 0 ;;
+        termos-run)
+            echo "termos-run: running termos-run in termos-run... it's termos-run all the way down."
+            exit 0 ;;
+        red-pill|redpill)    fetch --red-pill ;;
+        blue-pill|bluepill)  fetch --blue-pill ;;
+        rabbit|white-rabbit) echo "Follow it: termos-run red-pill"; exit 0 ;;
+        spoon)               fetch --spoon ;;
+    esac
+fi
+
+if [[ ! -e "$app" ]]; then
+    case "$app" in
+        nix:*)  run_nix "nixpkgs#${app#nix:}" "$@" ;;
+        *#*)    run_nix "$app" "$@" ;;
+        *)      die "no such file: $app (for a Nix package use nix:$app)" ;;
+    esac
+fi
+
+# ---- Remote hosts (BSD VM, Mac) ---------------------------------------------
+
+run_remote() {
+    local host="$1" what="$2"; shift 2
+    need ssh "sudo dnf install openssh-clients"
+    local remote
+    remote="/tmp/termos-run-$$-$(basename -- "$app")"
+    scp -qr -- "$app" "$host:$remote" || die "can't reach $what '$host'"
+    local cmd="$remote" a
+    if [[ -d "$app" && "$app" == *.app ]]; then
+        cmd="open -W $remote --args"        # macOS app bundle
+    else
+        cmd="chmod +x $remote && $remote"
+    fi
+    for a in "$@"; do cmd+=" $(printf '%q' "$a")"; done
+    exec ssh -t "$host" "$cmd; rc=\$?; rm -rf $remote; exit \$rc"
+}
+
+run_bsd() {
+    run_remote "${TERMOS_BSD_HOST:-termos-bsd}" "BSD VM (set TERMOS_BSD_HOST)" "$@"
+}
+
+# ---- macOS ------------------------------------------------------------------
+
+# Path of a host file as seen from inside Darling's prefix.
+darling_path() { printf '/Volumes/SystemRoot%s' "$(realpath -- "$1")"; }
+
+app_bundle_exe() {
+    local plist="$1/Contents/Info.plist" exe=""
+    if [[ -f "$plist" ]]; then
+        exe="$(grep -A1 '<key>CFBundleExecutable</key>' "$plist" \
+               | sed -n 's:.*<string>\(.*\)</string>.*:\1:p' | head -1)"
+    fi
+    if [[ -z "$exe" ]]; then
+        exe="$(find "$1/Contents/MacOS" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | head -1)"
+    fi
+    [[ -n "$exe" ]] || die "can't find the executable inside $1"
+    printf '%s/Contents/MacOS/%s' "$1" "$exe"
+}
+
+run_macos() {
+    if command -v darling >/dev/null; then
+        local target="$app"
+        [[ -d "$app" ]] && target="$(app_bundle_exe "$app")"
+        case "$app" in
+            *.pkg) exec darling shell installer -pkg "$(darling_path "$app")" -target / ;;
+            *.dmg) exec darling shell hdiutil attach "$(darling_path "$app")" ;;
+        esac
+        exec darling "$(darling_path "$target")" "$@"
+    fi
+    case "$app" in
+        *.pkg|*.dmg) die "installing .pkg/.dmg needs Darling (sudo dnf copr enable medzik/darling && sudo dnf install darling)" ;;
+    esac
+    run_remote "${TERMOS_MAC_HOST:-termos-mac}" \
+        "Mac (install Darling, or set TERMOS_MAC_HOST)" "$@"
+}
+
+# ---- Windows / Ubuntu -------------------------------------------------------
+
+run_windows() {
+    need wine "sudo dnf install wine"
+    export WINEPREFIX="${WINEPREFIX:-$HOME/.local/share/termos/wine}"
+    mkdir -p "$WINEPREFIX"
+    if [[ "$app" == *.msi || "$app" == *.MSI ]]; then
+        exec wine msiexec /i "$app" "$@"
+    fi
+    exec wine "$app" "$@"
+}
+
+run_deb() {
+    need distrobox "sudo dnf install distrobox"
+    distrobox list | grep -qw ubuntu || distrobox create --yes --name ubuntu --image ubuntu:24.04
+    local abs; abs="$(realpath -- "$app")"
+    exec distrobox enter ubuntu -- sudo apt-get install -y "$abs"
+}
+
+# ---- Dispatch ---------------------------------------------------------------
+
+if [[ -d "$app" ]]; then
+    if [[ "$app" == *.app || -d "$app/Contents/MacOS" ]]; then run_macos "$@"; fi
+    if [[ -f "$app/flake.nix" ]]; then run_nix "$(realpath -- "$app")" "$@"; fi
+    die "don't know how to run directory: $app"
+fi
+
+need file "sudo dnf install file"
+kind="$(file -b -- "$app")"
+
+case "$kind" in
+    *"Mach-O"*)                                    run_macos "$@" ;;
+    *"PE32"*|*"MS-DOS executable"*)                run_windows "$@" ;;
+    *"Composite Document File"*|*"MSI Installer"*) run_windows "$@" ;;
+    *"Debian binary package"*)                     run_deb ;;
+    *ELF*FreeBSD*|*ELF*NetBSD*|*ELF*OpenBSD*|*ELF*DragonFly*) run_bsd "$@" ;;
+    *ELF*)                                         exec "$(realpath -- "$app")" "$@" ;;
+    *) case "$app" in
+           *.exe|*.EXE|*.msi|*.MSI) run_windows "$@" ;;
+           *.pkg|*.dmg)             run_macos "$@" ;;
+           *.deb)                   run_deb ;;
+           *) die "don't know how to run this: $kind" ;;
+       esac ;;
+esac

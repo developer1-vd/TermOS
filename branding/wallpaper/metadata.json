@@ -1,0 +1,13 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "TermOS"
+            }
+        ],
+        "Description": "Matrix-style digital rain with the TermOS logo",
+        "Id": "TermOS",
+        "License": "GPL-3.0-only",
+        "Name": "TermOS"
+    }
+}

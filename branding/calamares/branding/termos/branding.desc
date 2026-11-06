@@ -1,0 +1,40 @@
+# TermOS branding for Calamares.
+---
+componentName:  termos
+
+welcomeStyleCalamares:  false
+welcomeExpandingLogo:   true
+
+windowExpanding:    normal
+windowSize:         1024px,640px
+windowPlacement:    center
+
+sidebar:    widget
+navigation: widget
+
+strings:
+    productName:         TermOS
+    shortProductName:    TermOS
+    # @@VERSION@@ is filled in from the VERSION file when the ISO is built.
+    version:             "@@VERSION@@"
+    shortVersion:        "@@VERSION@@"
+    versionedName:       "TermOS @@VERSION@@"
+    shortVersionedName:  "TermOS @@VERSION@@"
+    bootloaderEntryName: TermOS
+    productUrl:          https://github.com/developer1-vd/TermOS
+    supportUrl:          https://github.com/developer1-vd/TermOS/issues
+    knownIssuesUrl:      https://github.com/developer1-vd/TermOS/issues
+
+images:
+    productIcon:     "logo.png"
+    productLogo:     "logo.png"
+    productWelcome:  "welcome.png"
+
+style:
+    SidebarBackground:        "#020804"
+    SidebarText:              "#00AA44"
+    SidebarTextCurrent:       "#020804"
+    SidebarBackgroundCurrent: "#00FF66"
+
+slideshow:     "show.qml"
+slideshowAPI:  2

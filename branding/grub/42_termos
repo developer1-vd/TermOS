@@ -1,0 +1,19 @@
+#!/bin/sh
+# TermOS: a GRUB easter egg. Installed to /etc/grub.d/42_termos, so
+# grub2-mkconfig adds it to grub.cfg. Nothing shows in the menu; press "c" at
+# the boot menu for the GRUB command line and type "rabbit" (or "neo").
+cat <<'CFG'
+function rabbit {
+	echo "Wake up, Neo..."
+	sleep 2
+	echo "The Matrix has you..."
+	sleep 2
+	echo "Follow the white rabbit."
+	sleep 2
+	echo ""
+	echo "Knock, knock. (Press Esc to go back to the menu.)"
+}
+function neo {
+	rabbit
+}
+CFG

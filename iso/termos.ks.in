@@ -1,0 +1,183 @@
+# TermOS live ISO kickstart (template).
+#
+# Don't feed this file to livemedia-creator directly: iso/build-iso.sh fills
+# in @@RELEASE@@, and adds a %post section that installs TermOS's own files.
+# The block between the DARLING markers is removed when TERMOS_DARLING=0.
+
+lang en_US.UTF-8
+keyboard us
+timezone UTC
+network --bootproto=dhcp --device=link --activate
+selinux --enforcing
+firewall --enabled --service=mdns
+services --enabled=NetworkManager,livesys,livesys-late
+xconfig --startxonboot
+rootpw --lock
+shutdown
+
+zerombr
+clearpart --all
+part / --size 14336 --fstype ext4
+bootloader --location=none
+
+# livemedia-creator needs a plain base URL here (it can't use --mirrorlist).
+url --url=https://download.fedoraproject.org/pub/fedora/linux/releases/@@RELEASE@@/Everything/$basearch/os/
+repo --name=updates --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=updates-released-f@@RELEASE@@&arch=$basearch
+
+%packages --ignoremissing
+# Fedora base with the KDE Plasma desktop.
+@^kde-desktop-environment
+@kde-apps
+@kde-media
+kernel
+kernel-modules
+kernel-modules-extra
+
+# Live media + the Calamares installer (instead of Fedora's Anaconda).
+dracut-live
+livesys-scripts
+calamares
+-anaconda-live
+-anaconda-webui
+-initial-setup-gui
+-initial-setup-gui-wayland-plasma
+-@dial-up
+
+# Ubuntu layer.
+distrobox
+podman
+
+# Nix layer.
+nix
+nix-daemon
+
+# Windows apps.
+wine
+wine-mono
+mingw32-wine-gecko
+mingw64-wine-gecko
+wine-dxvk
+winetricks
+bottles
+lutris
+protontricks
+
+# BSD apps (run in a VM).
+qemu-kvm
+virt-manager
+libvirt-daemon-config-network
+
+# Flatpak (Flathub is added in %post).
+flatpak
+
+# Boot loaders: lorax needs these to make the ISO bootable (BIOS + UEFI with
+# Secure Boot), and Calamares needs them to install GRUB.
+grub2-pc
+grub2-pc-modules
+grub2-efi-x64
+grub2-efi-x64-cdboot
+shim-x64
+efibootmgr
+
+# GRUB theme: grub2-mkfont makes its fonts from DejaVu Sans Mono.
+grub2-tools-extra
+dejavu-sans-mono-fonts
+
+# Boot splash.
+plymouth
+plymouth-plugin-script
+plymouth-plugin-label
+
+# termos-run / termos-fetch helpers.
+file
+openssh-clients
+fastfetch
+fortune-mod
+
+# Handy defaults.
+git
+htop
+%end
+
+%post
+# Live session: KDE Plasma, auto-login as liveuser (handled by livesys-scripts).
+sed -i 's/^livesys_session=.*/livesys_session="kde"/' /etc/sysconfig/livesys
+
+# Nix daemon, if the nix-daemon package was available for this release.
+systemctl enable nix-daemon.socket 2>/dev/null || true
+
+# libvirt for BSD VMs.
+systemctl enable libvirtd.socket 2>/dev/null || true
+
+# Flathub, for apps that aren't packaged for Fedora.
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
+    || echo "TermOS: couldn't add Flathub; add it later with flatpak remote-add"
+
+# Installer: hide Fedora's generic Calamares launcher in favour of
+# "Install TermOS" (the live-only package is removed on install anyway).
+if [ -f /usr/share/applications/calamares.desktop ]; then
+    echo "NoDisplay=true" >> /usr/share/applications/calamares.desktop
+fi
+
+# TermOS boot splash. The initramfs is rebuilt afterwards (by lorax for the
+# live ISO, and by the installer for installed systems), so it picks this up.
+plymouth-set-default-theme termos || echo "TermOS: couldn't set the Plymouth theme"
+
+# TermOS GRUB theme. Calamares regenerates grub.cfg when it installs the
+# bootloader, so this only needs to set /etc/default/grub and copy the theme.
+/usr/libexec/termos/install-grub-theme.sh /usr/share/termos/grub/termos \
+    || echo "TermOS: couldn't install the GRUB theme"
+
+# TermOS wallpaper on the lock screen too. Fedora's KDE profile also sets a
+# lock screen wallpaper, so point that at TermOS's as well.
+for f in /usr/share/kde-settings/kde-profile/default/xdg/kscreenlockerrc; do
+    [ -f "$f" ] && sed -i 's|wallpapers/Fedora/|wallpapers/TermOS/|g' "$f"
+done
+
+# TermOS fortunes: `fortune termos`, and they turn up in termite mode.
+strfile /usr/share/games/fortune/termos >/dev/null || echo "TermOS: couldn't index the TermOS fortunes"
+
+# Use the TermOS fastfetch config for every user.
+mkdir -p /etc/xdg/fastfetch
+cp /usr/share/termos/fastfetch/config.jsonc /etc/xdg/fastfetch/config.jsonc
+
+# Greeting.
+cat > /etc/motd <<'MOTD'
+Welcome to TermOS @@VERSION@@: Fedora + Ubuntu + Nix.
+Run `termos-fetch`, or `fortune | termos-fetch` if you're feeling lucky.
+Run Windows, macOS, BSD, Nix and Ubuntu apps with `termos-run`.
+MOTD
+
+# A tiny "about" file other tools can read.
+cat > /etc/termos-release <<REL
+NAME=TermOS
+VERSION_ID=@@VERSION@@
+PRETTY_NAME="TermOS @@VERSION@@"
+BASE="Fedora Linux @@RELEASE@@"
+DESKTOP=KDE Plasma
+REL
+%end
+
+# @@DARLING_BEGIN@@
+%post
+# Darling (macOS apps) isn't in Fedora, so it comes from the medzik/darling
+# COPR. That package is community-built, so a failure here only skips Darling
+# instead of failing the whole ISO build.
+cat > /etc/yum.repos.d/termos-darling.repo <<'REPO'
+[termos-darling]
+name=Darling (macOS translation layer) from COPR medzik/darling
+baseurl=https://download.copr.fedorainfracloud.org/results/medzik/darling/fedora-$releasever-$basearch/
+type=rpm-md
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/medzik/darling/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+skip_if_unavailable=True
+REPO
+if dnf install -y darling; then
+    echo "TermOS: Darling installed"
+else
+    echo "TermOS: WARNING: Darling could not be installed; macOS apps will need a Mac over SSH"
+fi
+%end
+# @@DARLING_END@@
