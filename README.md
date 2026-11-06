@@ -7,6 +7,8 @@ TermOS is a Linux distribution that combines **Fedora**, **Ubuntu** and **Nix**,
 **Current release: TermOS v0.1**, the first release, based on **Fedora 45**.
 See [CHANGELOG.md](CHANGELOG.md) for what's in it.
 
+**Website:** https://developer1-vd.github.io/TermOS/ (the site's source is in `docs/`).
+
 ## The three parts
 
 | Part       | What TermOS takes from it                                                   |
@@ -331,6 +333,7 @@ branding/make-art.py           generates the wallpaper, splash, GRUB and install
 iso/termos.ks.in               kickstart template for the live ISO
 iso/build-iso.sh               ISO builder
 flake.nix                      Nix package, apps and dev shell
+docs/                          the GitHub Pages website
 Makefile                       install, iso, lint and clean targets
 VERSION                        the TermOS version (0.1)
 CHANGELOG.md                   what changed in each release

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TermOS: Fedora, Ubuntu and Nix in one system</title>
+  <meta name="description" content="TermOS is a Linux distribution based on Fedora 45 that combines Fedora, Ubuntu and Nix, and runs Windows, macOS and BSD apps too.">
+  <meta name="theme-color" content="#020804">
+  <meta property="og:title" content="TermOS">
+  <meta property="og:description" content="Fedora, Ubuntu and Nix in one system. Runs Windows, macOS and BSD apps too.">
+  <meta property="og:image" content="assets/wallpaper.webp">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/icon.png" alt="">TermOS</a>
+    <ul>
+      <li><a href="#why">Why</a></li>
+      <li><a href="#run">Run anything</a></li>
+      <li><a href="#look">The look</a></li>
+      <li class="keep"><a href="#download">Download</a></li>
+      <li class="keep"><a href="https://github.com/developer1-vd/TermOS">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <canvas id="hero-rain" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <h1 class="wordmark">TermOS</h1>
+    <p class="tagline">Fedora, Ubuntu and Nix in one system. It runs Windows, macOS and BSD apps too.</p>
+    <p class="meta">v0.1 · based on Fedora 45 · KDE Plasma</p>
+    <div class="buttons">
+      <a class="btn btn-primary" href="https://github.com/developer1-vd/TermOS/releases/latest">Download v0.1</a>
+      <a class="btn btn-ghost" href="https://github.com/developer1-vd/TermOS">View on GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section id="why">
+  <div class="wrap">
+    <h2>Three distros, one system</h2>
+    <p class="lead">TermOS is built on Fedora, with Ubuntu and Nix layered on top. You get Fedora's fresh, stable base and the software from all three. (The name doesn't mean anything. It's not a terminal OS; TermOS is just a cool name.)</p>
+    <div class="cards">
+      <div class="card">
+        <span class="tag">base system</span>
+        <h3>Fedora 45</h3>
+        <p>The kernel, <code>dnf</code> and RPM packages, systemd, SELinux and Btrfs. Fedora's release cycle keeps things current without breaking them.</p>
+      </div>
+      <div class="card">
+        <span class="tag">layer</span>
+        <h3>Ubuntu</h3>
+        <p>Friendly defaults, and Ubuntu's software: <code>.deb</code> packages install into an Ubuntu container with Distrobox and run like native apps.</p>
+      </div>
+      <div class="card">
+        <span class="tag">layer</span>
+        <h3>Nix</h3>
+        <p>Nix runs alongside <code>dnf</code> for reproducible per-user setups, and gives you the huge nixpkgs collection. Try any package without installing it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="run">
+  <div class="wrap">
+    <h2>Run anything</h2>
+    <p class="lead"><code>termos-run</code> works out what a program was built for and sends it to the right place. You just run it.</p>
+    <div class="two">
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>App</th><th>How TermOS runs it</th></tr></thead>
+          <tbody>
+            <tr><td>Windows <code>.exe</code> / <code>.msi</code></td><td>Wine, plus Bottles, Lutris and Proton for games</td></tr>
+            <tr><td>macOS binaries and <code>.app</code></td><td>Darling, or a Mac over SSH</td></tr>
+            <tr><td>BSD binaries</td><td>A BSD virtual machine, over SSH</td></tr>
+            <tr><td>Nix packages</td><td><code>nix run</code>, with nothing installed for good</td></tr>
+            <tr><td>Ubuntu <code>.deb</code></td><td>The Ubuntu Distrobox container</td></tr>
+            <tr><td>Linux</td><td>Directly, of course</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <figure class="terminal" aria-label="Example terminal session">
+        <div class="bar"><span></span><span></span><span></span></div>
+        <pre><span class="gd">$</span> termos-run notepad++.exe
+<span class="gd">$</span> termos-run ./SomeTool.app
+<span class="gd">$</span> termos-run ./freebsd-tool --help
+<span class="gd">$</span> termos-run nix:cowsay moo
+<span class="p"> _____
+&lt; moo &gt;
+ -----
+        \   ^__^
+         \  (oo)\_______
+            (__)\       )\/\
+                ||----w |
+                ||     ||</span></pre>
+      </figure>
+    </div>
+    <p class="note">BSD and macOS programs can't run on the Linux kernel by themselves, so TermOS uses Darling or a virtual machine for them. Darling is still experimental: command-line tools work best.</p>
+  </div>
+</section>
+
+<section id="fetch">
+  <div class="wrap">
+    <h2>termos-fetch</h2>
+    <p class="lead">System info with the TermOS Matrix logo, the way fastfetch and neofetch show it. Pipe <code>fortune</code> into it and TermOS turns into a termite, and every stat becomes a fortune.</p>
+    <div class="two">
+      <figure class="terminal" style="margin:0">
+        <div class="bar"><span></span><span></span><span></span></div>
+        <pre><span class="gd">$</span> termos-fetch
+<span class="g b"> 1   0 1    0   1  0    1</span>   <span class="g b">you</span>@<span class="g b">termos</span>
+<span class="g b"> 0 1 1 0  1 1 0 1  1  0 1</span>   -----------
+<span class="g b"> 1 0 0 1  0 0 1 0  0  1 1</span>   <span class="g b">OS</span>: TermOS 0.1 (Fedora Linux 45)
+<span class="g b"> 0 1   0  1   0 1  1  0 0</span>   <span class="g b">Kernel</span>: Linux 6.19
+<span class="g b"> 1 0 1 1  0 1 1 0  0  1 0</span>   <span class="g b">Shell</span>: bash 5.3
+<span class="g b">   1 0 0  1 0   1  1  0 1</span>   <span class="g b">DE</span>: KDE Plasma
+<span class="g b"> 0 0 1 1  0 1 0 0  1    1</span>   <span class="g b">Memory</span>: 3.1 GiB / 16 GiB
+<span class="g b"> 1 1 0    1 0 1 1  0  1 0</span></pre>
+      </figure>
+      <figure class="terminal" style="margin:0">
+        <div class="bar"><span></span><span></span><span></span></div>
+        <pre><span class="gd">$</span> fortune | termos-fetch
+<span class="t">        \     /   </span>    <span class="t b">termite</span>@<span class="t b">TermOS</span>
+<span class="t">         \___/    </span>    -----------------
+<span class="t">       .-(o o)-.  </span>    <span class="t b">OS</span>: You will be fortunate.
+<span class="t">      /  `-^-'  \ </span>    <span class="t b">Host</span>: There is no spoon.
+<span class="t">     /|  (___)  |\</span>    <span class="t b">Kernel</span>: Beware of low-flying butterflies.
+<span class="t">    / |  (   )  | \</span>   <span class="t b">Uptime</span>: The termite was here first.
+<span class="t">      |  (___)  | </span>    <span class="t b">CPU</span>: Your lucky number is 0x1F.
+<span class="t">     /   (   )   \</span>    <span class="t b">Memory</span>: You forgot something.
+<span class="t">          ( )     </span></pre>
+      </figure>
+    </div>
+    <p class="caption">Example output. Your stats (and fortunes) will differ.</p>
+  </div>
+</section>
+
+<section id="look">
+  <div class="wrap">
+    <h2>The look</h2>
+    <p class="lead">Green digital rain behind the TermOS logo, from the boot menu to the desktop.</p>
+    <div class="gallery">
+      <figure class="shot">
+        <img src="assets/wallpaper.webp" width="1920" height="1080" loading="lazy" alt="The TermOS wallpaper: green falling ones and zeros behind a glowing TermOS logo.">
+        <figcaption><b>Wallpaper.</b> The default on the KDE Plasma desktop and lock screen.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/grub.webp" width="1280" height="800" loading="lazy" alt="The TermOS boot menu: a green-framed menu with 'Start TermOS 0.1' highlighted, over the rain.">
+        <figcaption><b>Boot menu.</b> A GRUB theme for the ISO and for installed systems.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/splash.webp" width="1280" height="720" loading="lazy" alt="The TermOS boot splash: the logo and a progress bar, with rain falling behind.">
+        <figcaption><b>Boot splash.</b> The rain keeps falling while the system starts.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/installer.webp" width="800" height="440" loading="lazy" alt="A TermOS installer slide titled 'Run anything', over the rain.">
+        <figcaption><b>Installer.</b> Calamares, with a TermOS slideshow while it installs.</figcaption>
+      </figure>
+    </div>
+    <div class="phone">
+      <img src="assets/wallpaper-phone.webp" width="540" height="1200" loading="lazy" alt="The TermOS wallpaper in portrait, for phones.">
+      <p>The wallpaper comes in phone sizes too (1080×2400 and 1440×3200). Grab them from <a href="https://github.com/developer1-vd/TermOS/tree/main/branding/wallpaper/contents/images">the repository</a>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="preinstalled">
+  <div class="wrap">
+    <h2>Ready out of the box</h2>
+    <p class="lead">Everything for running apps from anywhere is already on the ISO.</p>
+    <div class="cards">
+      <div class="card"><span class="tag">desktop</span><h3>KDE Plasma</h3><p>With the KDE apps, and Flatpak with Flathub ready to go.</p></div>
+      <div class="card"><span class="tag">windows</span><h3>Wine and friends</h3><p>Wine with Mono, Gecko and DXVK, plus Winetricks, Bottles, Lutris and Protontricks.</p></div>
+      <div class="card"><span class="tag">macos + bsd</span><h3>Darling and VMs</h3><p>Darling for macOS apps, and QEMU/KVM with virt-manager for a BSD virtual machine.</p></div>
+      <div class="card"><span class="tag">ubuntu + nix</span><h3>Distrobox and Nix</h3><p>Distrobox and Podman for Ubuntu software, and Nix with its daemon enabled.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <h2>Download and install</h2>
+    <p class="lead">TermOS v0.1 is a live ISO: try it from a USB stick, then install it from the desktop.</p>
+    <ol class="steps">
+      <li>
+        <h3>Download</h3>
+        Get the files from the <a href="https://github.com/developer1-vd/TermOS/releases/latest">latest release</a>. GitHub limits release files to 2 GiB, so a bigger ISO comes in parts. Download them all, plus <code>SHA256SUMS</code>, and join them:
+        <pre>cat TermOS-0.1-x86_64.iso.part* &gt; TermOS-0.1-x86_64.iso
+sha256sum --check --ignore-missing SHA256SUMS</pre>
+      </li>
+      <li>
+        <h3>Write it to a USB stick</h3>
+        Use <a href="https://fedoraproject.org/workstation/download">Fedora Media Writer</a> (Windows, macOS or Linux), or <code>dd</code> on Linux. This erases the stick.
+      </li>
+      <li>
+        <h3>Boot it</h3>
+        Restart from the USB stick and pick <b>Start TermOS 0.1</b>. You get a live KDE Plasma desktop to try everything out.
+      </li>
+      <li>
+        <h3>Install</h3>
+        Double-click <b>Install TermOS</b> on the desktop. The installer walks you through language, keyboard, disks (encryption included) and your user account.
+      </li>
+    </ol>
+    <p class="note">Prefer to build it yourself? Clone the repository and run <code>make iso</code> on Fedora, or <code>make iso-container</code> anywhere with Docker or Podman. The <a href="https://github.com/developer1-vd/TermOS#readme">README</a> has the details.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>TermOS v0.1 · GPL-3.0 · <a href="https://github.com/developer1-vd/TermOS">GitHub</a></span>
+    <span>Built on Fedora Linux. Not affiliated with Fedora, Red Hat, Canonical or the NixOS Foundation.</span>
+    <span class="hint" title="psst">follow the white rabbit</span>
+  </div>
+</footer>
+
+<div id="rabbit" role="dialog" aria-label="Easter egg" aria-hidden="true">
+  <canvas></canvas>
+  <p id="rabbit-text"></p>
+</div>
+
+<script src="rain.js"></script>
+</body>
+</html>
