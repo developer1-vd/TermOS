@@ -208,6 +208,7 @@ The setup lives in `branding/calamares/`:
 settings.conf          the install steps (based on Fedora's own Calamares setup)
 modules/welcome.conf   requirements check: 25 GB disk, 2 GB RAM
 modules/packages.conf  removes live-only packages after installing
+modules/partition.conf disk layout: GPT on UEFI machines, MBR on BIOS ones
 branding/termos/       TermOS logo, colours and slideshow
 ```
 
