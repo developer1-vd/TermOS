@@ -327,6 +327,7 @@ config/neofetch/config.conf    neofetch config using the Matrix logo
 branding/wallpaper/            KDE wallpaper package (desktop + phone sizes)
 branding/plymouth/termos/      Plymouth boot splash theme
 branding/grub/                 GRUB theme, its install script and a GRUB easter egg
+branding/icons/                TermOS logo icon, installed in place of Fedora's logo
 branding/kde/                  KDE defaults (wallpaper, lock screen)
 branding/calamares/            Calamares installer settings and branding
 branding/fortune/termos        TermOS fortunes (easter egg)

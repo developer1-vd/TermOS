@@ -10,6 +10,7 @@ Writes:
     branding/plymouth/termos/*.png                   Plymouth boot splash images
     branding/calamares/branding/termos/*.png         installer (Calamares) images
     branding/grub/termos/*.png                       GRUB boot menu theme images
+    branding/icons/hicolor/<size>/apps/termos-logo.png  TermOS logo icon (all sizes)
 
 The art is Matrix-style digital rain in TermOS green, with the TermOS
 wordmark in the middle. A fixed random seed keeps the output reproducible.
@@ -185,6 +186,30 @@ def make_plymouth(out, font_path):
     lock.save(os.path.join(out, "prompt.png"))
 
 
+def app_icon(size, font_path):
+    """The TermOS icon: a glowing ">_" prompt on a dark rounded tile.
+
+    Drawn at `size` with the same proportions as the installer's 256 px icon.
+    """
+    k = size / 256
+    tile = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    ImageDraw.Draw(tile).rounded_rectangle(
+        [8 * k, 8 * k, size - 9 * k, size - 9 * k], radius=44 * k,
+        fill=BLACK + (255,), outline=MID + (255,), width=max(1, round(6 * k)))
+    prompt = wordmark(round(110 * k), font_path, ">_")
+    tile.alpha_composite(prompt, ((size - prompt.width) // 2, (size - prompt.height) // 2))
+    return tile
+
+
+def make_icons(out, font_path):
+    """The TermOS logo as a hicolor icon in every size Fedora's logos use."""
+    master = app_icon(1024, font_path)
+    for s in (16, 22, 24, 32, 36, 48, 64, 96, 128, 256):
+        d = os.path.join(out, f"{s}x{s}", "apps")
+        os.makedirs(d, exist_ok=True)
+        master.resize((s, s), Image.LANCZOS).save(os.path.join(d, "termos-logo.png"), optimize=True)
+
+
 def make_calamares(out, font_path):
     """Installer branding: icon, welcome logo and slideshow background."""
     os.makedirs(out, exist_ok=True)
@@ -241,6 +266,10 @@ def main():
     cal = os.path.join(HERE, "calamares", "branding", "termos")
     make_calamares(cal, font_path)
     print("wrote", os.path.relpath(cal) + "/*.png")
+
+    icons = os.path.join(HERE, "icons", "hicolor")
+    make_icons(icons, font_path)
+    print("wrote", os.path.relpath(icons) + "/*/apps/termos-logo.png")
 
     grub = os.path.join(HERE, "grub", "termos")
     make_grub(grub, font_path)

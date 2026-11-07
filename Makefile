@@ -4,6 +4,7 @@
 #   make uninstall     remove them
 #   make install-splash  install the TermOS boot splash and make it the default (root)
 #   make install-grub    install the TermOS GRUB theme and regenerate grub.cfg (root)
+#   make install-icons   use the TermOS logo in place of Fedora's logo (root)
 #   make art           regenerate the wallpaper and boot splash images
 #   make iso           build the live ISO (needs root on Fedora; see iso/build-iso.sh)
 #   make iso-container build the live ISO inside a Fedora container
@@ -21,12 +22,12 @@ FORTUNEDIR ?= $(DESTDIR)/usr/share/games/fortune
 
 SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh \
            branding/grub/install-grub-theme.sh branding/grub/42_termos \
-           branding/calamares/termos-live-desktop.sh
+           branding/calamares/termos-live-desktop.sh branding/icons/install-icons.sh
 
-.PHONY: all install uninstall install-splash install-grub art iso iso-container ks lint clean
+.PHONY: all install uninstall install-splash install-grub install-icons art iso iso-container ks lint clean
 
 all:
-	@sed -n '3,12s/^# \{0,1\}//p' Makefile
+	@sed -n '3,13s/^# \{0,1\}//p' Makefile
 
 install:
 	install -Dm755 bin/termos-fetch               $(BINDIR)/termos-fetch
@@ -49,6 +50,9 @@ install-splash:
 install-grub:
 	install -Dm755 branding/grub/42_termos $(DESTDIR)/etc/grub.d/42_termos
 	branding/grub/install-grub-theme.sh branding/grub/termos --mkconfig
+
+install-icons:
+	branding/icons/install-icons.sh branding/icons/hicolor $(DESTDIR)/usr/local/share/icons/hicolor
 
 art:
 	python3 branding/make-art.py
