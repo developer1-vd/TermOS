@@ -132,6 +132,16 @@ plymouth-set-default-theme termos || echo "TermOS: couldn't set the Plymouth the
 /usr/libexec/termos/install-grub-theme.sh /usr/share/termos/grub/termos \
     || echo "TermOS: couldn't install the GRUB theme"
 
+# TermOS logo in place of Fedora's: the app menu icon (start-here), the logo
+# KDE shows for the distro (fedora-logo-icon, e.g. in the Welcome Center), and
+# the logo in System Settings > About this System.
+/usr/libexec/termos/install-icons.sh /usr/share/termos/icons/hicolor \
+    || echo "TermOS: couldn't install the logo icons"
+if [ -f /etc/xdg/kcm-about-distrorc ]; then
+    sed -i 's|^LogoPath=.*|LogoPath=/usr/share/termos/icons/hicolor/256x256/apps/termos-logo.png|' \
+        /etc/xdg/kcm-about-distrorc
+fi
+
 # TermOS wallpaper on the lock screen too. Fedora's KDE profile also sets a
 # lock screen wallpaper, so point that at TermOS's as well.
 for f in /usr/share/kde-settings/kde-profile/default/xdg/kscreenlockerrc; do

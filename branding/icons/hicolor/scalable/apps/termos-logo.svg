@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- TermOS logo: a glowing ">_" prompt on a dark rounded tile.
+       Matches the PNGs made by branding/make-art.py. -->
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+  </defs>
+  <rect x="11" y="11" width="234" height="234" rx="44" fill="#020804" stroke="#00aa44" stroke-width="6"/>
+  <g fill="none" stroke-linecap="butt" stroke-linejoin="miter">
+    <g stroke="#00ff66" stroke-width="16" filter="url(#glow)" opacity="0.9">
+      <polyline points="60,86 110,111 60,136"/>
+      <line x1="120" y1="167" x2="183" y2="167"/>
+    </g>
+    <g stroke="#c8ffd7" stroke-width="12">
+      <polyline points="60,86 110,111 60,136"/>
+      <line x1="120" y1="167" x2="183" y2="167"/>
+    </g>
+  </g>
+</svg>
