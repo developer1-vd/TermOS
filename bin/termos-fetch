@@ -49,11 +49,18 @@ matrix_mode() {
     local version
     version="$(termos_version)"
     if command -v fastfetch >/dev/null; then
-        # fastfetch can't set a module's format on the command line, so put
-        # the version into a temporary copy of the config.
+        # On TermOS, os-release's PRETTY_NAME already reads "TermOS 0.1
+        # (Fedora Linux 45)". Anywhere else, wrap the host's name in "TermOS
+        # 0.1 (...)". fastfetch can't set a module's format on the command
+        # line, so that goes into a temporary copy of the config.
         local config
         config="$(mktemp --suffix=.jsonc)"
-        sed "s/\"TermOS (/\"TermOS${version:+ $version} (/" "$conf/fastfetch/config.jsonc" > "$config"
+        if grep -qE '^NAME="?TermOS"?$' /etc/os-release 2>/dev/null; then
+            cp "$conf/fastfetch/config.jsonc" "$config"
+        else
+            sed "s/\"{pretty-name}\"/\"TermOS${version:+ $version} ({pretty-name})\"/" \
+                "$conf/fastfetch/config.jsonc" > "$config"
+        fi
         local rc=0
         fastfetch --config "$config" \
             --logo "$logo" --logo-type file --logo-color-1 "$color" || rc=$?

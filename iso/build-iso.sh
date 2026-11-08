@@ -88,6 +88,12 @@ write_ks() {
     # Easter eggs: TermOS fortunes (indexed in %post) and a GRUB command.
     embed "$repo/branding/fortune/termos"           /usr/share/games/fortune/termos 0644
     embed "$repo/branding/grub/42_termos"           /etc/grub.d/42_termos 0755
+    # TermOS branding in /etc/os-release (run and enabled by the template's %post).
+    embed "$repo/branding/os-release/termos-os-release" /usr/libexec/termos/termos-os-release 0755
+    embed "$repo/branding/os-release/termos-os-release.service" \
+        /etc/systemd/system/termos-os-release.service 0644
+    embed "$repo/branding/os-release/termos-os-release.path" \
+        /etc/systemd/system/termos-os-release.path 0644
     # TermOS logo icons (installed over Fedora's logo by the template's %post).
     embed_tree "$repo/branding/icons/hicolor"           /usr/share/termos/icons/hicolor
     embed "$repo/branding/icons/install-icons.sh"   /usr/libexec/termos/install-icons.sh 0755

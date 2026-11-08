@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-brand /etc/os-release when Fedora updates it
+Documentation=https://github.com/developer1-vd/TermOS
+
+[Path]
+PathChanged=/usr/lib/os-release
+Unit=termos-os-release.service
+
+[Install]
+WantedBy=paths.target

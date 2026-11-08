@@ -5,6 +5,7 @@
 #   make install-splash  install the TermOS boot splash and make it the default (root)
 #   make install-grub    install the TermOS GRUB theme and regenerate grub.cfg (root)
 #   make install-icons   use the TermOS logo in place of Fedora's logo (root)
+#   make install-os-release  brand /etc/os-release as TermOS and keep it so (root)
 #   make art           regenerate the wallpaper and boot splash images
 #   make iso           build the live ISO (needs root on Fedora; see iso/build-iso.sh)
 #   make iso-container build the live ISO inside a Fedora container
@@ -22,12 +23,13 @@ FORTUNEDIR ?= $(DESTDIR)/usr/share/games/fortune
 
 SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh \
            branding/grub/install-grub-theme.sh branding/grub/42_termos \
-           branding/calamares/termos-live-desktop.sh branding/icons/install-icons.sh
+           branding/calamares/termos-live-desktop.sh branding/icons/install-icons.sh \
+           branding/os-release/termos-os-release
 
-.PHONY: all install uninstall install-splash install-grub install-icons art iso iso-container ks lint clean
+.PHONY: all install uninstall install-splash install-grub install-icons install-os-release art iso iso-container ks lint clean
 
 all:
-	@sed -n '3,13s/^# \{0,1\}//p' Makefile
+	@sed -n '3,14s/^# \{0,1\}//p' Makefile
 
 install:
 	install -Dm755 bin/termos-fetch               $(BINDIR)/termos-fetch
@@ -53,6 +55,16 @@ install-grub:
 
 install-icons:
 	branding/icons/install-icons.sh branding/icons/hicolor $(DESTDIR)/usr/local/share/icons/hicolor
+
+install-os-release:
+	install -Dm755 branding/os-release/termos-os-release $(DESTDIR)/usr/libexec/termos/termos-os-release
+	install -Dm644 -t $(DESTDIR)/etc/systemd/system \
+		branding/os-release/termos-os-release.service branding/os-release/termos-os-release.path
+	test -f $(DESTDIR)/etc/termos-release || \
+		printf 'NAME=TermOS\nVERSION_ID=%s\nPRETTY_NAME="TermOS %s"\n' "$$(cat VERSION)" "$$(cat VERSION)" \
+		> $(DESTDIR)/etc/termos-release
+	systemctl daemon-reload
+	systemctl enable --now termos-os-release.service termos-os-release.path
 
 art:
 	python3 branding/make-art.py
