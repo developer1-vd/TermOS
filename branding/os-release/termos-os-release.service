@@ -1,0 +1,15 @@
+[Unit]
+Description=Brand /etc/os-release as TermOS
+Documentation=https://github.com/developer1-vd/TermOS
+# Before anything shows the system's name to a user. The image already
+# ships a branded /etc/os-release; this keeps it current after Fedora
+# updates rewrite /usr/lib/os-release.
+Before=display-manager.service systemd-user-sessions.service
+ConditionPathExists=/usr/lib/os-release
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/termos/termos-os-release
+
+[Install]
+WantedBy=multi-user.target

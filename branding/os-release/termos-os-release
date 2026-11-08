@@ -1,0 +1,61 @@
+#!/bin/sh
+# termos-os-release: write /etc/os-release as Fedora's /usr/lib/os-release
+# with TermOS branding.
+#
+# Only display fields change: NAME, VERSION, PRETTY_NAME, LOGO, ANSI_COLOR,
+# DEFAULT_HOSTNAME, HOME_URL and BUG_REPORT_URL. ID, VERSION_ID and the rest
+# stay Fedora's, because dnf, Flatpak, Distrobox and others rely on them.
+#
+# /etc/os-release is normally a symlink to /usr/lib/os-release, which Fedora
+# updates rewrite, so termos-os-release.service runs this at boot and
+# termos-os-release.path runs it whenever /usr/lib/os-release changes.
+#
+#   termos-os-release [FEDORA_OS_RELEASE] [OUTPUT] [TERMOS_RELEASE]
+set -eu
+
+src="${1:-/usr/lib/os-release}"
+out="${2:-/etc/os-release}"
+termos_release="${3:-/etc/termos-release}"
+
+[ -r "$src" ] || { echo "termos-os-release: $src not found" >&2; exit 1; }
+
+# Fedora's name and release, e.g. "Fedora Linux 45".
+# shellcheck source=/dev/null
+fedora="$(. "$src" && echo "${NAME:-Fedora Linux} ${VERSION_ID:-}")"
+fedora="${fedora% }"
+# TermOS's own version, e.g. "0.1".
+version=""
+if [ -r "$termos_release" ]; then
+    # shellcheck source=/dev/null
+    version="$(. "$termos_release" && echo "${VERSION_ID:-}")"
+fi
+
+tmp="$(mktemp "${out}.XXXXXX")"
+trap 'rm -f "$tmp"' EXIT
+awk -v name="TermOS" \
+    -v version="${version:+$version }($fedora)" \
+    -v pretty="TermOS${version:+ $version} ($fedora)" '
+    BEGIN {
+        set["NAME"]             = "\"" name "\""
+        set["VERSION"]          = "\"" version "\""
+        set["PRETTY_NAME"]      = "\"" pretty "\""
+        set["LOGO"]             = "termos-logo"
+        set["ANSI_COLOR"]       = "\"0;32\""
+        set["DEFAULT_HOSTNAME"] = "\"termos\""
+        set["HOME_URL"]         = "\"https://developer1-vd.github.io/TermOS/\""
+        set["BUG_REPORT_URL"]   = "\"https://github.com/developer1-vd/TermOS/issues\""
+    }
+    {
+        key = $0; sub(/=.*/, "", key)
+        if (key in set) { print key "=" set[key]; done[key] = 1 } else print
+    }
+    END { for (k in set) if (!(k in done)) print k "=" set[k] }
+' "$src" > "$tmp"
+chmod 644 "$tmp"
+
+# Only replace the file (or the symlink) when something changed.
+if [ -L "$out" ] || ! cmp -s "$tmp" "$out"; then
+    mv -f "$tmp" "$out"
+    trap - EXIT
+    echo "termos-os-release: wrote $out"
+fi

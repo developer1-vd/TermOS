@@ -168,8 +168,24 @@ NAME=TermOS
 VERSION_ID=@@VERSION@@
 PRETTY_NAME="TermOS @@VERSION@@"
 BASE="Fedora Linux @@RELEASE@@"
-DESKTOP=KDE Plasma
+DESKTOP="KDE Plasma"
 REL
+
+# Brand /etc/os-release as TermOS (so the Welcome Center, About this System,
+# fastfetch and GRUB say TermOS), and keep it branded after Fedora updates.
+/usr/libexec/termos/termos-os-release || echo "TermOS: couldn't brand /etc/os-release"
+systemctl enable termos-os-release.service termos-os-release.path 2>/dev/null || true
+
+# The image's kernel already has a boot menu entry with Fedora's name; give
+# it the title kernel-install will use for future kernels: NAME (kernel) VERSION.
+(
+    . /etc/os-release
+    for entry in /boot/loader/entries/*.conf; do
+        [ -f "$entry" ] || continue
+        kver="$(sed -n 's/^version[[:space:]]*//p' "$entry")"
+        [ -n "$kver" ] && sed -i "s|^title .*|title $NAME ($kver) $VERSION|" "$entry"
+    done
+)
 %end
 
 # @@DARLING_BEGIN@@

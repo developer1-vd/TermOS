@@ -13,7 +13,7 @@
   "modules": [
     "title",
     "separator",
-    { "type": "os", "format": "TermOS ({name} {version})" },
+    { "type": "os", "format": "{pretty-name}" },
     "host",
     "kernel",
     "uptime",
