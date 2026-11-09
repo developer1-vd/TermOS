@@ -42,8 +42,10 @@ done
 
 work="$(mktemp -d)"
 loop=""
+uuid_links=()
 cleanup() {
     set +e
+    for l in "${uuid_links[@]}"; do rm -f "$l"; done
     for m in "$work"/target/{dev/pts,dev,proc,sys,run,home,boot} "$work"/target "$work"/top "$work"/src; do
         mountpoint -q "$m" && umount -l "$m"
     done
@@ -122,6 +124,11 @@ echo 'tester:termos' | in_target chpasswd
 
 # ---- grubcfg (test-only: serial console and visible boot messages)
 step "grubcfg"
+# Test-only: GRUB on the serial port too, so a GRUB error shows in the log.
+cat >> "$t/etc/default/grub" <<'GRUB'
+GRUB_TERMINAL_OUTPUT="console serial"
+GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200"
+GRUB
 grep -q '^GRUB_CMDLINE_LINUX=' "$t/etc/default/grub" || echo 'GRUB_CMDLINE_LINUX="rhgb quiet"' >> "$t/etc/default/grub"
 sed -i 's/^GRUB_CMDLINE_LINUX="\(.*\)"/GRUB_CMDLINE_LINUX="\1 console=tty0 console=ttyS0,115200 systemd.show_status=1"/' \
     "$t/etc/default/grub"
@@ -133,6 +140,14 @@ step "dracut: regenerate the initramfs"
 in_target dracut -f --regenerate-all
 
 # ---- bootloader (BIOS)
+# On a real install udev makes /dev/disk/by-uuid links, and grub2-mkconfig
+# uses them to write root=UUID=...; this container has no udev, so make them.
+mkdir -p /dev/disk/by-uuid
+for p in "${loop}p1" "${loop}p2"; do
+    link="/dev/disk/by-uuid/$(blkid -s UUID -o value "$p")"
+    ln -sf "$p" "$link"
+    uuid_links+=("$link")
+done
 step "bootloader: grub2-install --target=i386-pc --recheck --force $loop"
 in_target grub2-install --target=i386-pc --recheck --force "$loop"
 in_target grub2-mkconfig -o /boot/grub2/grub.cfg
@@ -157,7 +172,7 @@ qemu=$!
 result=timeout
 for (( i = 0; i < timeout; i += 5 )); do
     sleep 5
-    if grep -aqE "Kernel panic|not found\.|you need to load the kernel|Entering emergency mode" "$serial" 2>/dev/null; then
+    if grep -aqE "Kernel panic|not found\.|you need to load the kernel|Entering emergency mode|^error: " "$serial" 2>/dev/null; then
         result=fail; break
     fi
     if grep -aq "login:" "$serial" 2>/dev/null; then
