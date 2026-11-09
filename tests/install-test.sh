@@ -25,7 +25,8 @@
 #
 # Needs root, loop devices, device-mapper, anaconda (anaconda-tui), the tools
 # to make file systems (e2fsprogs, xfsprogs, btrfs-progs, dosfstools; without
-# them Anaconda's storage module won't start), rsync and qemu-system-x86_64. Run it in a Fedora container or VM of TermOS's release.
+# them Anaconda's storage module won't start), rsync and qemu-system-x86_64.
+# Run it in a Fedora container or VM of TermOS's release.
 set -euo pipefail
 
 src="$(realpath "$1")"
