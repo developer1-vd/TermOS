@@ -315,6 +315,22 @@ make clean     # remove build/
 `nix develop` opens a shell with the lint tools. CI runs `make lint` and builds the
 Nix package on every push.
 
+### Install test
+
+`tests/install-test.sh` installs TermOS onto a virtual disk the way the installer
+does, then boots it in QEMU. It uses TermOS's real partition layout, btrfs
+subvolumes, boot-entry fix and SELinux relabel, installs GRUB for BIOS, and passes
+when the system reaches a login prompt with no failed services:
+
+```bash
+sudo tests/install-test.sh build/out/lmc-disk-*.img build/itest/disk.img
+```
+
+The first argument is the live system's root filesystem, such as the disk image
+`livemedia-creator` leaves in `build/out/`. The test can't drive the Calamares
+installer itself (it has no unattended mode), so it covers the disk layout, GRUB and
+booting, not Calamares' screens. It doesn't test UEFI installs yet.
+
 ## Repository layout
 
 ```
@@ -337,6 +353,7 @@ iso/termos.ks.in               kickstart template for the live ISO
 iso/build-iso.sh               ISO builder
 flake.nix                      Nix package, apps and dev shell
 docs/                          the GitHub Pages website
+tests/install-test.sh          install onto a virtual disk and boot it in QEMU
 Makefile                       install, iso, lint and clean targets
 VERSION                        the TermOS version (0.1)
 CHANGELOG.md                   what changed in each release
