@@ -81,11 +81,24 @@ GRUB
 grub2-mkconfig -o /boot/grub2/grub.cfg
 %end
 KS
+# Anaconda's own logs (anaconda.log, storage.log, program.log, ...) go to
+# /tmp; keep a copy next to the disk image, and show them if it fails.
+logs="$(dirname "$disk")/anaconda-logs"
+save_logs() {
+    mkdir -p "$logs"
+    cp /tmp/*.log "$work/anaconda.out" "$logs"/ 2>/dev/null || true
+}
 if ! anaconda --image "$disk" --kickstart "$work/install.ks" --cmdline --nosave=all \
         > "$work/anaconda.out" 2>&1; then
+    save_logs
     tail -n 40 "$work/anaconda.out"
-    die "anaconda failed"
+    for log in "$logs"/*.log; do
+        echo "install-test: ---- $(basename "$log") (last 40 lines)"
+        tail -n 40 "$log"
+    done
+    die "anaconda failed (logs in $logs)"
 fi
+save_logs
 tail -n 5 "$work/anaconda.out"
 
 # ---- Look at what the installer made ---------------------------------------

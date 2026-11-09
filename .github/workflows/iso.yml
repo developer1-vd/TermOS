@@ -11,12 +11,17 @@ on:
         description: Publish the ISO to the GitHub release for this version (tag v<VERSION>)
         type: boolean
         default: false
+      test_run:
+        description: Only test the ISO an earlier run built (that run's ID); skips building and publishing
+        default: ""
 
 permissions:
   contents: write   # only used to create the release and upload the ISO
+  actions: read     # to download an earlier run's ISO (test_run)
 
 jobs:
   iso:
+    if: ${{ inputs.test_run == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     outputs:
@@ -78,19 +83,27 @@ jobs:
   # gets published.
   install-test:
     needs: iso
+    # Runs after a successful build, or on its own with test_run.
+    if: ${{ always() && (needs.iso.result == 'success' || inputs.test_run != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
 
+      - name: Read the TermOS version
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.iso.outputs.artifact }}
+          name: TermOS-${{ steps.version.outputs.version }}-fedora${{ inputs.release }}-x86_64
           path: iso-files
+          run-id: ${{ inputs.test_run || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Join the ISO and take out its root filesystem
         env:
-          VERSION: ${{ needs.iso.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           sudo mkdir -p /mnt/test /mnt/iso
           sudo chown "$USER" /mnt/test
@@ -130,13 +143,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: install-test-serial-log
-          path: /mnt/test/*.serial.log
+          name: install-test-logs
+          path: |
+            /mnt/test/*.serial.log
+            /mnt/test/anaconda-logs/
           if-no-files-found: ignore
 
   publish:
     needs: [iso, install-test]
-    if: ${{ inputs.publish }}
+    if: ${{ inputs.publish && inputs.test_run == '' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
