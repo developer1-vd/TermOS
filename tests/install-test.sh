@@ -94,11 +94,17 @@ user --name=tester --password=termos --plaintext --groups=wheel
 shutdown
 
 %post
-# Test-only: GRUB on the serial port too, so a GRUB error shows in the log.
-cat >> /etc/default/grub <<'GRUB'
+# Test-only: don't list the test machine's own systems (the container sees
+# its disks), and on BIOS put GRUB on the serial port too, so a GRUB error
+# shows in the log. (UEFI firmware copies the console there already, and
+# Fedora's signed EFI GRUB has no serial terminal.)
+echo 'GRUB_DISABLE_OS_PROBER=true' >> /etc/default/grub
+if [ ! -d /sys/firmware/efi ]; then
+    cat >> /etc/default/grub <<'GRUB'
 GRUB_TERMINAL_OUTPUT="console serial"
 GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200"
 GRUB
+fi
 grub2-mkconfig -o /boot/grub2/grub.cfg
 %end
 KS
