@@ -102,6 +102,25 @@ GRUB
 grub2-mkconfig -o /boot/grub2/grub.cfg
 %end
 KS
+if [[ $firmware == bios ]]; then
+    # grub2-install, run in the new system, picks EFI when its /sys (a fresh
+    # sysfs, not the one hidden below) shows EFI firmware. On a real BIOS
+    # machine there's none; here, hide it while Anaconda installs.
+    cat >> "$work/install.ks" <<'KS'
+
+%pre-install --interpreter=/bin/bash
+if [[ -d /mnt/sysroot/sys/firmware/efi ]]; then
+    mount -t tmpfs -o size=1m,mode=0755 termos-no-efi /mnt/sysroot/sys/firmware
+fi
+%end
+
+%post --nochroot --interpreter=/bin/bash
+if mountpoint -q /mnt/sysroot/sys/firmware; then
+    umount /mnt/sysroot/sys/firmware
+fi
+%end
+KS
+fi
 # Anaconda's own logs (anaconda.log, storage.log, program.log, ...) go to
 # /tmp; keep a copy next to the disk image, and show them if it fails.
 logs="$(dirname "$disk")/anaconda-logs"
@@ -133,10 +152,17 @@ step "inspect: partitions, boot entries, SELinux labels"
 loop="$(losetup -fP --show "$disk")"
 partx -u "$loop" 2>/dev/null || true
 udevadm settle 2>/dev/null || sleep 2
-lsblk -o NAME,SIZE,FSTYPE,LABEL "$loop" | sed 's/^/  /'
+blkid "$loop"p* | sed 's/^/  /'
 mkdir -p "$work/top" "$work/target"
-rootpart="$(lsblk -nrpo NAME,FSTYPE "$loop" | awk '$2 == "btrfs" { print $1; exit }')"
-bootpart="$(lsblk -nrpo NAME,FSTYPE "$loop" | awk '$2 == "ext4" { print $1; exit }')"
+# Without udev, lsblk doesn't know file system types; ask blkid.
+fstype() { blkid -o value -s TYPE "$1" 2>/dev/null || true; }
+rootpart="" bootpart=""
+for part in "$loop"p*; do
+    case "$(fstype "$part")" in
+        btrfs) [[ -n $rootpart ]] || rootpart="$part" ;;
+        ext4)  [[ -n $bootpart ]] || bootpart="$part" ;;
+    esac
+done
 [[ -n "$rootpart" ]] || die "no btrfs root partition found"
 mount "$rootpart" "$work/top"
 rootvol="$(btrfs subvolume list "$work/top" | awk '$NF == "root" || $NF == "@root" || $NF == "@" { print $NF; exit }')"
