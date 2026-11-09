@@ -92,6 +92,10 @@ plymouth
 plymouth-plugin-script
 plymouth-plugin-label
 
+# SELinux tools: semanage for the Nix rule, setfiles for the installer.
+policycoreutils
+policycoreutils-python-utils
+
 # termos-run / termos-fetch helpers.
 file
 openssh-clients
@@ -109,6 +113,16 @@ sed -i 's/^livesys_session=.*/livesys_session="kde"/' /etc/sysconfig/livesys
 
 # Nix daemon, if the nix-daemon package was available for this release.
 systemctl enable nix-daemon.socket 2>/dev/null || true
+# SELinux has no rules for /nix, so its daemon socket directory would be
+# default_t and systemd couldn't create the socket there ("Failed to listen
+# on nix-daemon.socket"). Label it like other daemon sockets. setfiles, not
+# restorecon: restorecon does nothing where the build host has no SELinux.
+if command -v semanage >/dev/null; then
+    semanage fcontext -a -t var_run_t '/nix/var/nix/daemon-socket(/.*)?' \
+        || echo "TermOS: couldn't add the SELinux rule for the Nix daemon socket"
+    mkdir -p /nix/var/nix/daemon-socket
+    setfiles -F /etc/selinux/targeted/contexts/files/file_contexts /nix || true
+fi
 
 # libvirt for BSD VMs.
 systemctl enable libvirtd.socket 2>/dev/null || true

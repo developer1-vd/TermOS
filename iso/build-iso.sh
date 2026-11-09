@@ -107,6 +107,10 @@ write_ks() {
     embed_tree "$repo/branding/calamares/branding/termos" /usr/share/calamares/branding/termos
     embed "$repo/branding/calamares/termos-install.desktop" \
         /usr/share/applications/termos-install.desktop 0644
+    embed "$repo/branding/calamares/termos-fix-boot-entries" \
+        /usr/libexec/termos/termos-fix-boot-entries 0755
+    embed "$repo/branding/calamares/termos-relabel" \
+        /usr/libexec/termos/termos-relabel 0755
     embed "$repo/branding/calamares/termos-live-desktop.sh" \
         /usr/libexec/termos/termos-live-desktop.sh 0755
     embed "$repo/branding/calamares/termos-live-desktop.desktop" \

@@ -1,0 +1,31 @@
+#!/bin/sh
+# termos-relabel: label the new system's files for SELinux. Run by the
+# installer (Calamares shellprocess@selinux) inside the new system, as the
+# last step before it's unmounted.
+#
+# TermOS, like Fedora, runs SELinux in enforcing mode. Files the installer
+# writes (machine-id, fstab, users in passwd/shadow, the initramfs, GRUB's
+# files, ...) otherwise get no label or a generic one, and services such as
+# journald, D-Bus and polkit then fail to start. Fedora's own installer
+# relabels at the end in the same way.
+set -eu
+
+type=targeted
+if [ -r /etc/selinux/config ]; then
+    # shellcheck source=/dev/null
+    type="$(. /etc/selinux/config && echo "${SELINUXTYPE:-targeted}")"
+fi
+contexts="/etc/selinux/$type/contexts/files/file_contexts"
+if [ ! -f "$contexts" ] || ! command -v setfiles >/dev/null; then
+    echo "termos-relabel: no SELinux policy or setfiles; nothing to do"
+    exit 0
+fi
+
+# Skip pseudo file systems, and file systems that can't hold labels (the
+# EFI system partition is FAT).
+set -- -F
+for path in /proc /sys /dev /run /boot/efi; do
+    [ -e "$path" ] && set -- "$@" -e "$path"
+done
+echo "termos-relabel: labeling / with $contexts"
+setfiles "$@" "$contexts" /

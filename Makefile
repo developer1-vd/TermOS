@@ -24,7 +24,9 @@ FORTUNEDIR ?= $(DESTDIR)/usr/share/games/fortune
 SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh \
            branding/grub/install-grub-theme.sh branding/grub/42_termos \
            branding/calamares/termos-live-desktop.sh branding/icons/install-icons.sh \
-           branding/os-release/termos-os-release
+           branding/os-release/termos-os-release branding/calamares/termos-fix-boot-entries \
+           branding/calamares/termos-relabel \
+           tests/install-test.sh
 
 .PHONY: all install uninstall install-splash install-grub install-icons install-os-release art iso iso-container ks lint clean
 
