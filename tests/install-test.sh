@@ -14,7 +14,8 @@
 #              has its own partition (Fedora's Calamares mount.conf)
 #   unpackfs   rsync -aHAXSr --filter='-x trusted.overlay.*', like Calamares
 #   machineid, fstab, users, dracut, grubcfg, bootloader (grub2-install
-#              --target=i386-pc --recheck --force, then grub2-mkconfig)
+#              --target=i386-pc --recheck --force, then grub2-mkconfig),
+#              shellprocess@bootentries (termos-fix-boot-entries)
 # It doesn't run Calamares itself (Calamares has no unattended mode), so it
 # tests TermOS's layout, GRUB and boot, not Calamares' own code.
 #
@@ -151,6 +152,12 @@ done
 step "bootloader: grub2-install --target=i386-pc --recheck --force $loop"
 in_target grub2-install --target=i386-pc --recheck --force "$loop"
 in_target grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# ---- shellprocess@bootentries (TermOS's step after the bootloader)
+step "shellprocess@bootentries: fix kernel paths for the separate /boot"
+fix="$(dirname "$(realpath "$0")")/../branding/calamares/termos-fix-boot-entries"
+install -Dm755 "$fix" "$t/usr/libexec/termos/termos-fix-boot-entries"
+in_target /usr/libexec/termos/termos-fix-boot-entries
 echo "install-test: boot entries:"
 grep -h -E '^(title|linux|initrd|options)' "$t"/boot/loader/entries/*.conf | sed 's/^/  /'
 

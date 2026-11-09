@@ -1,0 +1,29 @@
+#!/bin/sh
+# termos-fix-boot-entries: make the boot menu entries match the installed
+# disk layout. Run by the installer (Calamares shellprocess@bootentries)
+# inside the new system, after the bootloader step.
+#
+# The entries in /boot/loader/entries come from the live image, where /boot
+# is a plain folder, so they load /boot/vmlinuz-*. When /boot is its own
+# partition (TermOS's default layout), GRUB reads that partition directly
+# and the kernel is at /vmlinuz-*, so GRUB failed with "file
+# '/boot/vmlinuz-...' not found". Kernels installed later get the right
+# paths from kernel-install.
+set -eu
+
+dir=/boot/loader/entries
+[ -d "$dir" ] || exit 0
+
+# The device under a mount point, without any btrfs subvolume ("[/@root]").
+device() { findmnt -n -o SOURCE --target "$1" | sed 's/\[.*\]$//'; }
+
+if [ "$(device /boot)" = "$(device /)" ]; then
+    echo "termos-fix-boot-entries: /boot is on the root file system; nothing to do"
+    exit 0
+fi
+
+for entry in "$dir"/*.conf; do
+    [ -f "$entry" ] || continue
+    sed -i -E '/^(linux|initrd)[[:space:]]/ s#([[:space:]])/boot/#\1/#g' "$entry"
+    echo "termos-fix-boot-entries: fixed $entry"
+done
