@@ -137,7 +137,8 @@ jobs:
           docker run --rm --privileged -v /dev:/dev \
             -v "$GITHUB_WORKSPACE:/src:ro" -v /mnt/test:/work \
             "registry.fedoraproject.org/fedora:$FEDORA" bash -c '
-              dnf install -y -q anaconda-tui qemu-system-x86-core btrfs-progs util-linux \
+              dnf install -y -q anaconda-tui qemu-system-x86-core util-linux rsync \
+                e2fsprogs xfsprogs btrfs-progs dosfstools \
               && /src/tests/install-test.sh /work/squashfs.img /work/disk.img 1200'
 
       - uses: actions/upload-artifact@v4

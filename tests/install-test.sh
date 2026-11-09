@@ -23,8 +23,9 @@
 # system with setfiles afterwards; on a real TermOS live system, which runs
 # SELinux, the installer does this itself.
 #
-# Needs root, loop devices, anaconda (with anaconda-tui), and
-# qemu-system-x86_64. Run it in a Fedora container or VM of TermOS's release.
+# Needs root, loop devices, device-mapper, anaconda (anaconda-tui), the tools
+# to make file systems (e2fsprogs, xfsprogs, btrfs-progs, dosfstools; without
+# them Anaconda's storage module won't start), rsync and qemu-system-x86_64. Run it in a Fedora container or VM of TermOS's release.
 set -euo pipefail
 
 src="$(realpath "$1")"
@@ -87,6 +88,7 @@ logs="$(dirname "$disk")/anaconda-logs"
 save_logs() {
     mkdir -p "$logs"
     cp /tmp/*.log "$work/anaconda.out" "$logs"/ 2>/dev/null || true
+    chmod -R a+rX "$logs"   # readable outside the container (CI artifacts)
 }
 if ! anaconda --image "$disk" --kickstart "$work/install.ks" --cmdline --nosave=all \
         > "$work/anaconda.out" 2>&1; then
@@ -157,6 +159,7 @@ for (( i = 0; i < timeout; i += 5 )); do
 done
 kill "$qemu" 2>/dev/null || true
 wait "$qemu" 2>/dev/null || true
+chmod a+r "$serial"
 
 failed="$(sed 's/\x1b\[[0-9;]*m//g' "$serial" | grep -a '\[FAILED\]' | sort -u || true)"
 if [[ "$result" == pass && -n "$failed" ]]; then
