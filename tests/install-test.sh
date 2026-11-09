@@ -15,13 +15,14 @@
 #   unpackfs   rsync -aHAXSr --filter='-x trusted.overlay.*', like Calamares
 #   machineid, fstab, users, dracut, grubcfg, bootloader (grub2-install
 #              --target=i386-pc --recheck --force, then grub2-mkconfig),
-#              shellprocess@bootentries (termos-fix-boot-entries)
+#              shellprocess@bootentries (termos-fix-boot-entries),
+#              shellprocess@selinux (termos-relabel)
 # It doesn't run Calamares itself (Calamares has no unattended mode), so it
 # tests TermOS's layout, GRUB and boot, not Calamares' own code.
 #
 # Then it boots the disk (BIOS) in QEMU, with KVM when available, and
 # passes when the serial console shows systemd's "Welcome to TermOS" and a
-# login prompt. Test-only changes to the installed system: a serial console
+# login prompt, and no service failed. Test-only changes to the installed system: a serial console
 # and visible boot messages on the kernel command line, so the boot can be
 # watched, and a user "tester" (password "termos").
 #
@@ -158,6 +159,11 @@ step "shellprocess@bootentries: fix kernel paths for the separate /boot"
 fix="$(dirname "$(realpath "$0")")/../branding/calamares/termos-fix-boot-entries"
 install -Dm755 "$fix" "$t/usr/libexec/termos/termos-fix-boot-entries"
 in_target /usr/libexec/termos/termos-fix-boot-entries
+
+# ---- shellprocess@selinux (TermOS's last step: label files for SELinux)
+step "shellprocess@selinux: label the new system for SELinux"
+install -Dm755 "$(dirname "$fix")/termos-relabel" "$t/usr/libexec/termos/termos-relabel"
+in_target /usr/libexec/termos/termos-relabel
 echo "install-test: boot entries:"
 grep -h -E '^(title|linux|initrd|options)' "$t"/boot/loader/entries/*.conf | sed 's/^/  /'
 
@@ -183,6 +189,7 @@ for (( i = 0; i < timeout; i += 5 )); do
         result=fail; break
     fi
     if grep -aq "login:" "$serial" 2>/dev/null; then
+        sleep 30   # let late services start (or fail) before judging
         result=pass; break
     fi
     kill -0 "$qemu" 2>/dev/null || { result=exited; break; }
@@ -190,6 +197,13 @@ done
 kill "$qemu" 2>/dev/null || true
 wait "$qemu" 2>/dev/null || true
 
+failed="$(sed 's/\x1b\[[0-9;]*m//g' "$serial" | grep -a '\[FAILED\]' | sort -u || true)"
+if [[ "$result" == pass && -n "$failed" ]]; then
+    result="fail (services failed)"
+fi
+echo "install-test: failed services:"
+# shellcheck disable=SC2001  # indent each line of a multi-line list
+echo "${failed:-none}" | sed 's/^/  /'
 echo "install-test: serial console (welcome line and the end):"
 grep -a "Welcome to" "$serial" | sed 's/\x1b\[[0-9;]*m//g; s/^/  /'
 tail -n 5 "$serial" | sed 's/\x1b\[[0-9;]*m//g; s/^/  /'
