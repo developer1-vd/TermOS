@@ -19,6 +19,9 @@ jobs:
   iso:
     runs-on: ubuntu-24.04
     timeout-minutes: 300
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      artifact: TermOS-${{ steps.version.outputs.version }}-fedora${{ inputs.release }}-x86_64
     steps:
       - uses: actions/checkout@v5
 
@@ -70,11 +73,83 @@ jobs:
           path: ${{ steps.files.outputs.dir }}/*
           compression-level: 0
 
+  # Install the ISO's system with Anaconda (the real installer, unattended
+  # from a kickstart) onto a virtual disk, then boot it. Only a passing ISO
+  # gets published.
+  install-test:
+    needs: iso
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.iso.outputs.artifact }}
+          path: iso-files
+
+      - name: Join the ISO and take out its root filesystem
+        env:
+          VERSION: ${{ needs.iso.outputs.version }}
+        run: |
+          sudo mkdir -p /mnt/test /mnt/iso
+          sudo chown "$USER" /mnt/test
+          iso="TermOS-$VERSION-x86_64.iso"
+          cd iso-files
+          if ls "$iso".part* >/dev/null 2>&1; then
+            cat "$iso".part* > "/mnt/test/$iso"
+          else
+            mv "$iso" "/mnt/test/$iso"
+          fi
+          cd /mnt/test
+          sha256sum --check --ignore-missing "$GITHUB_WORKSPACE/iso-files/SHA256SUMS"
+          sudo mount -o loop,ro "$iso" /mnt/iso
+          cp /mnt/iso/LiveOS/squashfs.img /mnt/test/
+          sudo umount /mnt/iso
+          rm "$iso"
+          df -h /mnt
+
+      - name: Let the test use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      - name: Install with Anaconda and boot the installed system
+        env:
+          FEDORA: ${{ inputs.release }}
+        run: |
+          docker run --rm --privileged -v /dev:/dev \
+            -v "$GITHUB_WORKSPACE:/src:ro" -v /mnt/test:/work \
+            "registry.fedoraproject.org/fedora:$FEDORA" bash -c '
+              dnf install -y -q anaconda-tui qemu-system-x86-core btrfs-progs util-linux \
+              && /src/tests/install-test.sh /work/squashfs.img /work/disk.img 1200'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: install-test-serial-log
+          path: /mnt/test/*.serial.log
+          if-no-files-found: ignore
+
+  publish:
+    needs: [iso, install-test]
+    if: ${{ inputs.publish }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.iso.outputs.artifact }}
+          path: release
+
       - name: Publish to the GitHub release
-        if: ${{ inputs.publish }}
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.iso.outputs.version }}
           FEDORA: ${{ inputs.release }}
         run: |
           tag="v$VERSION"
@@ -88,7 +163,7 @@ jobs:
             echo
             echo "## Download"
             echo
-            if ls "${{ steps.files.outputs.dir }}"/"$iso".part* >/dev/null 2>&1; then
+            if ls release/"$iso".part* >/dev/null 2>&1; then
               echo "The ISO is split into parts (GitHub limits release files to 2 GiB)."
               echo "Download every \`$iso.part*\` file and \`SHA256SUMS\`, then join and check them:"
               echo
@@ -111,4 +186,4 @@ jobs:
           else
             gh release create "$tag" --target "$GITHUB_SHA" --title "TermOS $VERSION" --notes-file "$notes"
           fi
-          gh release upload "$tag" --clobber "${{ steps.files.outputs.dir }}"/*
+          gh release upload "$tag" --clobber release/*

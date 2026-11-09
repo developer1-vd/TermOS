@@ -40,6 +40,9 @@ for tool in anaconda losetup qemu-system-x86_64; do
     command -v "$tool" >/dev/null || die "missing tool: $tool"
 done
 
+# In containers there's no udev; let device-mapper create its device nodes.
+export DM_DISABLE_UDEV=1
+
 work="$(mktemp -d)"
 loop=""
 cleanup() {
