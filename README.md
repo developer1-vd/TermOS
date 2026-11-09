@@ -311,17 +311,19 @@ Nix package on every push.
 
 `tests/install-test.sh` installs TermOS onto a virtual disk with its installer,
 Anaconda, running unattended from a kickstart (automatic partitioning, like the web
-UI's "use the entire disk"). Then it boots the disk in QEMU (BIOS) and passes when
-the system reaches a login prompt with no failed services:
+UI's "use the entire disk"). Then it boots the disk in QEMU and passes when the
+system reaches a login prompt with no failed services:
 
 ```bash
 sudo tests/install-test.sh build/out/lmc-disk-*.img build/itest/disk.img
 ```
 
 The first argument is the live system's root filesystem, such as the disk image
-`livemedia-creator` leaves in `build/out/`. Run it in a Fedora container or VM with
-`anaconda-tui` and `qemu-system-x86-core` installed. It tests Anaconda's install
-engine, not the web UI's screens, and doesn't test UEFI installs yet.
+`livemedia-creator` leaves in `build/out/`. An optional fourth argument, `bios`
+(the default) or `uefi`, picks the firmware to install for and boot with; `uefi`
+needs a machine that boots with UEFI. Run it in a Fedora container or VM; the
+script's header lists the packages it needs. The Build ISO workflow runs it for
+both. It tests Anaconda's install engine, not the web UI's screens.
 
 ## Repository layout
 

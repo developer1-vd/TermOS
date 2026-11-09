@@ -2,7 +2,7 @@
 # install-test.sh: install TermOS onto a virtual disk with its installer,
 # Anaconda, then boot the disk in QEMU and check that it starts.
 #
-#   sudo tests/install-test.sh ROOTFS DISK.img [TIMEOUT_SECONDS]
+#   sudo tests/install-test.sh ROOTFS DISK.img [TIMEOUT_SECONDS] [bios|uefi]
 #
 # ROOTFS is the live system's root filesystem image, such as the
 # lmc-disk-*.img livemedia-creator leaves in build/out/ (or the ISO's
@@ -11,8 +11,13 @@
 # Anaconda runs unattended from a kickstart, installing from ROOTFS (the
 # liveimg payload, as the live installer does) onto DISK.img with automatic
 # partitioning, which is what the web UI's "use the entire disk" does. The
-# disk is then booted (BIOS) in QEMU, with KVM when available. The test
-# passes when the serial console shows a login prompt and no service failed.
+# disk is then booted in QEMU, with KVM when available. The test passes when
+# the serial console shows a login prompt and no service failed.
+#
+# Firmware (default bios): Anaconda installs the boot loader for the firmware
+# of the machine it runs on. For "bios" the test hides this machine's EFI
+# firmware from it (if it has one) and boots the disk with SeaBIOS; for
+# "uefi" the machine must boot with UEFI, and the disk boots with OVMF.
 #
 # Test-only changes to the installed system: a serial console and visible
 # boot messages on the kernel command line, GRUB's output on the serial port
@@ -25,13 +30,17 @@
 #
 # Needs root, loop devices, device-mapper, anaconda (anaconda-tui), the tools
 # to make file systems (e2fsprogs, xfsprogs, btrfs-progs, dosfstools; without
-# them Anaconda's storage module won't start), rsync and qemu-system-x86_64.
+# them Anaconda's storage module won't start), rsync, qemu-system-x86_64 and,
+# for uefi, edk2-ovmf. Anaconda also needs the btrfs kernel module: in a
+# container, load it on the host and share the host's /lib/modules.
 # Run it in a Fedora container or VM of TermOS's release.
 set -euo pipefail
 
 src="$(realpath "$1")"
 disk="$(realpath -m "$2")"
 timeout="${3:-1800}"
+firmware="${4:-bios}"
+ovmf=/usr/share/edk2/ovmf
 
 die() { echo "install-test: $*" >&2; exit 1; }
 step() { echo "install-test: == $*"; }
@@ -41,6 +50,14 @@ step() { echo "install-test: == $*"; }
 for tool in anaconda losetup qemu-system-x86_64; do
     command -v "$tool" >/dev/null || die "missing tool: $tool"
 done
+case "$firmware" in
+    bios) ;;
+    uefi)
+        [[ -d /sys/firmware/efi ]] || die "uefi: this machine doesn't boot with UEFI"
+        [[ -f $ovmf/OVMF_CODE.fd ]] || die "uefi: missing $ovmf/OVMF_CODE.fd (edk2-ovmf)"
+        ;;
+    *) die "firmware must be bios or uefi, not $firmware" ;;
+esac
 
 # In containers there's no udev; let device-mapper create its device nodes.
 export DM_DISABLE_UDEV=1
@@ -49,7 +66,8 @@ work="$(mktemp -d)"
 loop=""
 cleanup() {
     set +e
-    for m in "$work"/target/{dev,proc,sys,boot,home} "$work"/target "$work"/top; do
+    for m in "$work"/target/{dev,proc,sys,boot,home} "$work"/target "$work"/top \
+             /sys/firmware; do
         mountpoint -q "$m" && umount -l "$m"
     done
     [[ -n "$loop" ]] && losetup -d "$loop"
@@ -66,12 +84,7 @@ lang en_US.UTF-8
 keyboard us
 timezone UTC
 liveimg --url=file://$src
-# Only ever touch the disk image: in --image mode Anaconda calls it "disk".
-# The container sees the host's /dev, so without this Anaconda would also
-# consider the machine's real disks. (Only ignoredisk may name it: clearpart
-# and bootloader check their drives while the kickstart is read, before the
-# image is attached, and ignoredisk already limits them to it.)
-ignoredisk --only-use=disk
+# In --image mode Anaconda only uses the disk image (it calls it "disk").
 zerombr
 clearpart --all --initlabel
 autopart
@@ -97,6 +110,10 @@ save_logs() {
     cp /tmp/*.log "$work/anaconda.out" "$logs"/ 2>/dev/null || true
     chmod -R a+rX "$logs"   # readable outside the container (CI artifacts)
 }
+# Anaconda installs for EFI when /sys/firmware/efi exists; hide it for bios.
+if [[ $firmware == bios && -d /sys/firmware/efi ]]; then
+    mount -t tmpfs -o size=1m,mode=0755 termos-no-efi /sys/firmware
+fi
 if ! anaconda --image "$disk:disk" --kickstart "$work/install.ks" --cmdline --nosave=all \
         > "$work/anaconda.out" 2>&1; then
     save_logs
@@ -109,6 +126,7 @@ if ! anaconda --image "$disk:disk" --kickstart "$work/install.ks" --cmdline --no
 fi
 save_logs
 tail -n 5 "$work/anaconda.out"
+mountpoint -q /sys/firmware && umount /sys/firmware
 
 # ---- Look at what the installer made ---------------------------------------
 step "inspect: partitions, boot entries, SELinux labels"
@@ -143,12 +161,21 @@ trap - EXIT
 loop=""
 
 # ---- Boot it -------------------------------------------------------------------
-step "boot: QEMU, BIOS, serial console (timeout ${timeout}s)"
+step "boot: QEMU, $firmware, serial console (timeout ${timeout}s)"
 accel=tcg
 [[ -w /dev/kvm ]] && accel=kvm
+firmware_args=()
+if [[ $firmware == uefi ]]; then
+    cp "$ovmf/OVMF_VARS.fd" "${disk%.img}.vars.fd"
+    firmware_args=(
+        -drive "if=pflash,format=raw,readonly=on,file=$ovmf/OVMF_CODE.fd"
+        -drive "if=pflash,format=raw,file=${disk%.img}.vars.fd"
+    )
+fi
 serial="${disk%.img}.serial.log"
 rm -f "$serial"
 qemu-system-x86_64 -machine "accel=$accel" -m 4096 -smp 4 \
+    "${firmware_args[@]}" \
     -drive "file=$disk,format=raw,if=virtio" \
     -display none -serial "file:$serial" -no-reboot &
 qemu=$!
