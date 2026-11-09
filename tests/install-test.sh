@@ -179,6 +179,19 @@ mount -o "subvol=${rootvol:-root}" "$rootpart" "$t"
 echo "install-test: boot entries:"
 grep -h -E '^(title|linux|initrd)' "$t"/boot/loader/entries/*.conf | sed 's/^/  /'
 
+# Without udev, Anaconda can't read the new partitions' UUIDs, so fstab names
+# them by the installer's own device names (/dev/mapper/diskN, partition N of
+# the image), which don't exist at boot. On a real install udev runs; here,
+# put in the UUIDs.
+while read -r dev; do
+    uuid="$(blkid -o value -s UUID "${loop}p${dev##*/disk}")"
+    [[ -n $uuid ]] || die "no UUID for $dev"
+    echo "install-test: fstab: $dev -> UUID=$uuid (no udev in the test)"
+    sed -i "s|^$dev[[:space:]]|UUID=$uuid |" "$t/etc/fstab"
+done < <(grep -oE '^/dev/mapper/disk[0-9]+' "$t/etc/fstab" | sort -u)
+echo "install-test: fstab:"
+grep -v '^#' "$t/etc/fstab" | sed '/^$/d; s/^/  /'
+
 # Label files the installer wrote (see the note at the top).
 if [[ ! -e /sys/fs/selinux/enforce ]]; then
     step "selinux: label the installed system (no SELinux on this machine)"
@@ -214,7 +227,7 @@ qemu=$!
 result=timeout
 for (( i = 0; i < timeout; i += 5 )); do
     sleep 5
-    if grep -aqE "Kernel panic|not found\.|you need to load the kernel|Entering emergency mode|^error: " "$serial" 2>/dev/null; then
+    if grep -aqE "Kernel panic|not found\.|you need to load the kernel|Entering emergency mode|You are in emergency mode|^error: " "$serial" 2>/dev/null; then
         result=fail; break
     fi
     if grep -aq "login:" "$serial" 2>/dev/null; then
