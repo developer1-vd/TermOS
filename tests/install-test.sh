@@ -68,12 +68,14 @@ timezone UTC
 liveimg --url=file://$src
 # Only ever touch the disk image: in --image mode Anaconda calls it "disk".
 # The container sees the host's /dev, so without this Anaconda would also
-# consider the machine's real disks.
+# consider the machine's real disks. (Only ignoredisk may name it: clearpart
+# and bootloader check their drives while the kickstart is read, before the
+# image is attached, and ignoredisk already limits them to it.)
 ignoredisk --only-use=disk
 zerombr
-clearpart --all --initlabel --drives=disk
+clearpart --all --initlabel
 autopart
-bootloader --boot-drive=disk --append="console=tty0 console=ttyS0,115200 systemd.show_status=1"
+bootloader --append="console=tty0 console=ttyS0,115200 systemd.show_status=1"
 rootpw --lock
 user --name=tester --password=termos --plaintext --groups=wheel
 shutdown
