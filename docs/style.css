@@ -111,7 +111,7 @@ td:first-child { white-space: nowrap; }
 .caption { color: var(--muted); font-size: 15px; margin: 10px 0 0; }
 
 /* ---- Gallery ------------------------------------------------------------- */
-.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 24px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 24px; }
 .shot { margin: 0; }
 .shot img { border: 1px solid var(--line); border-radius: var(--radius); }
 .shot figcaption { margin-top: 10px; color: var(--muted); font-size: 15px; }
