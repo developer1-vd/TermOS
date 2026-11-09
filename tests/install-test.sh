@@ -66,10 +66,14 @@ lang en_US.UTF-8
 keyboard us
 timezone UTC
 liveimg --url=file://$src
+# Only ever touch the disk image: in --image mode Anaconda calls it "disk".
+# The container sees the host's /dev, so without this Anaconda would also
+# consider the machine's real disks.
+ignoredisk --only-use=disk
 zerombr
-clearpart --all --initlabel
+clearpart --all --initlabel --drives=disk
 autopart
-bootloader --append="console=tty0 console=ttyS0,115200 systemd.show_status=1"
+bootloader --boot-drive=disk --append="console=tty0 console=ttyS0,115200 systemd.show_status=1"
 rootpw --lock
 user --name=tester --password=termos --plaintext --groups=wheel
 shutdown
@@ -91,7 +95,7 @@ save_logs() {
     cp /tmp/*.log "$work/anaconda.out" "$logs"/ 2>/dev/null || true
     chmod -R a+rX "$logs"   # readable outside the container (CI artifacts)
 }
-if ! anaconda --image "$disk" --kickstart "$work/install.ks" --cmdline --nosave=all \
+if ! anaconda --image "$disk:disk" --kickstart "$work/install.ks" --cmdline --nosave=all \
         > "$work/anaconda.out" 2>&1; then
     save_logs
     tail -n 40 "$work/anaconda.out"
