@@ -270,6 +270,19 @@ board_inspect() {
         die "fstab names build-time devices; the board couldn't mount them"
     fi
     umount "$work/top"
+    # Nor may the boot entries (root=) on the /boot partition.
+    for part in "$loop"p*; do
+        mount -o ro "$part" "$work/top" 2>/dev/null || continue
+        if [[ -d "$work/top/loader/entries" ]]; then
+            echo "install-test: boot entries:"
+            grep -h -E '^(title|options)' "$work"/top/loader/entries/*.conf | sed 's/^/  /'
+            if grep -qs '/dev/mapper/\|/dev/loop' "$work"/top/loader/entries/*.conf; then
+                umount "$work/top"
+                die "the boot entries name build-time devices; the board couldn't find its root"
+            fi
+        fi
+        umount "$work/top"
+    done
     # The EFI partition (vfat) has GRUB, and U-Boot for the Raspberry Pi.
     local esp=""
     for part in "$loop"p*; do
@@ -327,7 +340,11 @@ qemu=$!
 result=timeout
 for (( i = 0; i < timeout; i += 5 )); do
     sleep 5
-    if grep -aqE "Kernel panic|not found\.|you need to load the kernel|Entering emergency mode|You are in emergency mode|^error: " "$serial" 2>/dev/null; then
+    # GRUB errors fail the test, except about its serial terminal: the test's
+    # console=ttyS0/ttyAMA0 makes Anaconda configure one, which EFI GRUB on
+    # ARM doesn't have (it carries on booting regardless).
+    if grep -aE "Kernel panic|not found\.|you need to load the kernel|Entering emergency mode|You are in emergency mode|^error: " "$serial" 2>/dev/null \
+            | grep -aqvE "terminal \`serial' isn't found|serial port \`auto' isn't found"; then
         result=fail; break
     fi
     if grep -aq "login:" "$serial" 2>/dev/null; then

@@ -174,16 +174,23 @@ else
     echo "TermOS: WARNING: no Raspberry Pi U-Boot; the image won't boot on a Pi"
 fi
 # The image is built in a container without udev, where Anaconda can't read
-# the new partitions' UUIDs and names them in fstab by its own device names
-# (/dev/mapper/diskN), which won't exist on the board. Use the UUIDs.
-for dev in $(grep -oE '^/dev/mapper/disk[0-9]+' /etc/fstab | sort -u); do
+# the new partitions' UUIDs, so it names them by its own device names
+# (/dev/mapper/<image name>N), which won't exist on the board: in fstab, and
+# as root= in the boot entries and kernel command line. Use the UUIDs.
+for dev in $(grep -oE '^/dev/mapper/[^[:space:]]+' /etc/fstab | sort -u); do
     uuid="$(blkid -o value -s UUID "$dev")"
-    if [ -n "$uuid" ]; then
-        sed -i "s|^${dev}[[:space:]]|UUID=$uuid |" /etc/fstab
-    else
-        echo "TermOS: ERROR: no UUID for $dev in /etc/fstab"
+    if [ -z "$uuid" ]; then
+        echo "TermOS: ERROR: no UUID for $dev"
+        continue
     fi
+    sed -i "s|^${dev}[[:space:]]|UUID=$uuid |" /etc/fstab
+    for f in /boot/loader/entries/*.conf /etc/kernel/cmdline /etc/default/grub /boot/grub2/grubenv; do
+        [ -f "$f" ] && sed -i -E "s#${dev}([^0-9]|\$)#UUID=${uuid}\1#g" "$f"
+    done
 done
+if grep -rqs '/dev/mapper/' /etc/fstab /boot/loader/entries /etc/kernel/cmdline; then
+    echo "TermOS: ERROR: build-time device names left in fstab or the boot entries"
+fi
 # @@ENDIF@@
 
 # Nix daemon, if the nix-daemon package was available for this release.
