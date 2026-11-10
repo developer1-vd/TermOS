@@ -31,7 +31,7 @@ on:
         type: boolean
         default: false
       test_run:
-        description: Only test the images an earlier run built (that run's ID); skips building, phones and publishing
+        description: Use the images an earlier run built (that run's ID) instead of building; they are tested again, and with publish they are published (its phone images too)
         default: ""
 
 permissions:
@@ -312,8 +312,11 @@ jobs:
   publish:
     needs: [plan, iso, install-test, phone]
     # Only if everything that ran passed (editions not chosen are skipped).
+    # With test_run, only for every edition: it publishes all the earlier
+    # run's images, so all of them must have been tested again here.
     if: >-
-      ${{ !cancelled() && inputs.publish && inputs.test_run == ''
+      ${{ !cancelled() && inputs.publish
+          && (inputs.test_run == '' || inputs.editions == 'all')
           && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
@@ -327,11 +330,15 @@ jobs:
           sudo chown "$USER" /mnt/release
           df -h / /mnt
 
+      # This run's images, or with test_run the earlier run's (tested again
+      # above).
       - uses: actions/download-artifact@v4
         with:
           pattern: TermOS-${{ needs.plan.outputs.version }}-*
           path: /mnt/release
           merge-multiple: true
+          run-id: ${{ inputs.test_run || github.run_id }}
+          github-token: ${{ github.token }}
 
       # GitHub release files must be under 2 GiB, so bigger files are split
       # into parts that are joined again with cat. SHA256SUMS lists every
@@ -352,10 +359,17 @@ jobs:
           new_sums="$RUNNER_TEMP/new-sums"
           : > "$new_sums"
           files=()
-          for sum in *.sha256; do
-            f="${sum%.sha256}"
-            cat "$sum" >> "$new_sums"
-            rm "$sum"
+          # Every image: check it against its .sha256 if it came with one
+          # (else checksum it here), then split it if it's over 2 GiB.
+          for f in TermOS-*; do
+            case "$f" in *.sha256) continue ;; esac
+            if [ -f "$f.sha256" ]; then
+              sha256sum --check --quiet "$f.sha256"
+              cat "$f.sha256" >> "$new_sums"
+              rm "$f.sha256"
+            else
+              sha256sum "$f" >> "$new_sums"
+            fi
             files+=("$f")
             if [ "$(stat -c %s "$f")" -gt 2000000000 ]; then
               split -b 1900M -d -a 1 "$f" "$f.part"
@@ -363,6 +377,7 @@ jobs:
               sha256sum "$f".part* >> "$new_sums"
             fi
           done
+          [ "${#files[@]}" -gt 0 ] || { echo "no images to publish"; exit 1; }
 
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --target "$GITHUB_SHA" --title "TermOS $VERSION" --notes "TermOS $VERSION"
@@ -379,9 +394,12 @@ jobs:
             awk -v f="$f" '{ n = $2; sub(/^\*/, "", n) } n != f && index(n, f ".part") != 1' \
               "$old_sums" > "$old_sums.tmp" && mv "$old_sums.tmp" "$old_sums"
           done
-          sort -k2 -u "$old_sums" "$new_sums" > SHA256SUMS
-          cat SHA256SUMS
+          sort -k2 -u "$old_sums" "$new_sums" > "$RUNNER_TEMP/SHA256SUMS"
+          cat "$RUNNER_TEMP/SHA256SUMS"
+          # The images first, SHA256SUMS last: if an upload fails, the
+          # release's SHA256SUMS still describes what's on it.
           gh release upload "$tag" --clobber ./*
+          gh release upload "$tag" --clobber "$RUNNER_TEMP/SHA256SUMS"
 
           # Release notes: the changelog, then what's on the release now.
           assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
