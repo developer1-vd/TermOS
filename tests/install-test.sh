@@ -187,7 +187,7 @@ while read -r dev; do
     uuid="$(blkid -o value -s UUID "${loop}p${dev##*/disk}")"
     [[ -n $uuid ]] || die "no UUID for $dev"
     echo "install-test: fstab: $dev -> UUID=$uuid (no udev in the test)"
-    sed -i "s|^$dev[[:space:]]|UUID=$uuid |" "$t/etc/fstab"
+    sed -i "s|^${dev}[[:space:]]|UUID=$uuid |" "$t/etc/fstab"
 done < <(grep -oE '^/dev/mapper/disk[0-9]+' "$t/etc/fstab" | sort -u)
 echo "install-test: fstab:"
 grep -v '^#' "$t/etc/fstab" | sed '/^$/d; s/^/  /'
