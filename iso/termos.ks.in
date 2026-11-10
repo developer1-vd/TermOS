@@ -27,14 +27,15 @@ bootloader --location=none
 # @@ENDIF@@
 # @@IF image=disk@@
 # A ready-to-boot disk for boards. MBR, which every Raspberry Pi's firmware
-# reads; the firmware, U-Boot and GRUB live on the EFI partition. 16 GB:
-# arm-image-installer --resizefs grows / to fill the card or disk.
+# reads; the firmware, U-Boot and GRUB live on the EFI partition. About 22 GB
+# (a 32 GB card or bigger), like the ISO's 20 GB root; arm-image-installer
+# --resizefs grows / to fill the card or disk.
 services --enabled=NetworkManager,sshd,plasma-setup
 zerombr
 clearpart --all --initlabel --disklabel=msdos
 part /boot/efi --fstype=efi --size=600
 part /boot --fstype=ext4 --size=1024
-part / --fstype=ext4 --size=14000
+part / --fstype=ext4 --size=20480
 bootloader --timeout=3
 # @@ENDIF@@
 

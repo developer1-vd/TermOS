@@ -245,7 +245,7 @@ board_inspect() {
     step "board image: copy $(basename "$src") to $(basename "$disk")"
     rm -f "$disk"
     case "$src" in
-        *.xz) xz -dc "$src" > "$disk" ;;
+        *.xz) xz -dc "$src" | dd of="$disk" bs=1M conv=sparse status=none ;;
         *)    cp --sparse=always "$src" "$disk" ;;
     esac
     step "inspect: partitions and fstab"

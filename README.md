@@ -328,7 +328,7 @@ make board
 
 The first writes `build/out/TermOS-0.1-aarch64.iso`; the second (`TERMOS_IMAGE=disk`)
 writes the board image, `build/out/TermOS-0.1-aarch64-board.raw.xz`. The board
-image is a 16 GB disk with an MBR partition table, the Raspberry Pi firmware and
+image is a 22 GB disk (write it to a 32 GB card or bigger) with an MBR partition table, the Raspberry Pi firmware and
 U-Boot on its EFI partition, and GRUB.
 
 ### Phones
