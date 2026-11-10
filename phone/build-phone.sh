@@ -3,14 +3,17 @@
 #
 #   phone/build-phone.sh DEVICE [OUT_DIR]
 #
-# DEVICE is a Nura codename from phone/devices.txt (e.g. oneplus-enchilada).
+# DEVICE is an entry from phone/devices.txt: a Nura codename (e.g.
+# oneplus-enchilada), or codename:kernel for phones that need a kernel for
+# their display panel (e.g. xiaomi-beryllium:tianma).
 # The phone edition is Nura (formerly postmarketOS) with KDE Plasma Mobile,
 # plus TermOS's look and tools: the Matrix wallpaper (phone sizes),
 # termos-fetch with its Matrix and termite modes, and the TermOS fortunes.
 # It is not Fedora: phones need Nura's kernels and device support.
 #
-# Output (OUT_DIR, default build/out): TermOS-VERSION-phone-DEVICE.tar.xz,
-# with the image(s) to flash and FLASHING.txt saying how.
+# Output (OUT_DIR, default build/out): TermOS-VERSION-phone-NAME.tar.xz
+# (NAME: the codename, plus -kernel for panel variants), with the image(s)
+# to flash and FLASHING.txt saying how.
 #
 # Environment:
 #   TERMOS_NURA_CHANNEL   Nura release (default: v26.06)
@@ -29,13 +32,18 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 die() { echo "build-phone: $*" >&2; exit 1; }
 step() { echo "build-phone: == $*"; }
 
-device="${1:-}"
+entry="${1:-}"
 out="$(realpath -m "${2:-$repo/build/out}")"
-[[ -n "$device" ]] || die "usage: build-phone.sh DEVICE [OUT_DIR] (devices: phone/devices.txt)"
-grep -qE "^${device}[[:space:]]" "$repo/phone/devices.txt" \
-    || die "$device isn't in phone/devices.txt"
-category="$(awk -v d="$device" '$1 == d { print $2 }' "$repo/phone/devices.txt")"
-model="$(awk -v d="$device" '$1 == d { $1 = $2 = ""; sub(/^ +/, ""); print }' "$repo/phone/devices.txt")"
+[[ -n "$entry" ]] || die "usage: build-phone.sh DEVICE [OUT_DIR] (devices: phone/devices.txt)"
+awk -v d="$entry" '$1 == d { found = 1 } END { exit !found }' "$repo/phone/devices.txt" \
+    || die "$entry isn't in phone/devices.txt"
+category="$(awk -v d="$entry" '$1 == d { print $2 }' "$repo/phone/devices.txt")"
+model="$(awk -v d="$entry" '$1 == d { $1 = $2 = ""; sub(/^ +/, ""); print }' "$repo/phone/devices.txt")"
+# codename:kernel -> Nura's device, its kernel variant, and the file name part.
+device="${entry%%:*}"
+kernel=""
+[[ "$entry" == *:* ]] && kernel="${entry#*:}"
+name="$device${kernel:+-$kernel}"
 
 version="$(tr -d '[:space:]' < "$repo/VERSION")"
 channel="${TERMOS_NURA_CHANNEL:-v26.06}"
@@ -143,7 +151,7 @@ APKBUILD
 # ---- Configure and build -------------------------------------------------------
 # What "pmbootstrap init" would ask for, written directly (init is
 # interactive): the config file, and the work folder with its version stamp.
-step "configure pmbootstrap for $device ($model)"
+step "configure pmbootstrap for $entry ($model)"
 mkdir -p "$work/pmb-work"
 cat > "$work/pmbootstrap.cfg" <<CFG
 [pmbootstrap]
@@ -157,6 +165,8 @@ user = termos
 timezone = UTC
 locale = en_US.UTF-8
 CFG
+# Phones with a kernel per display panel: pick this image's.
+[[ -n "$kernel" ]] && echo "kernel = $kernel" >> "$work/pmbootstrap.cfg"
 if [[ ! -f "$work/pmb-work/version" ]]; then
     (cd "$work/pmbootstrap" && python3 -c 'import pmb.config; print(pmb.config.work_version)') \
         > "$work/pmb-work/version"
@@ -168,30 +178,40 @@ pmb_or_log -y install --password "$pin"
 
 # ---- Collect the images ------------------------------------------------------
 step "collect the images"
-export_dir="$work/export-$device"
+export_dir="$work/export-$name"
 rm -rf "$export_dir"
 pmb_or_log export "$export_dir" >/dev/null
-stage="$work/stage/TermOS-$version-phone-$device"
+stage="$work/stage/TermOS-$version-phone-$name"
 rm -rf "$stage"
 mkdir -p "$stage"
 shopt -s nullglob
-for f in "$export_dir/$device.img" "$export_dir"/{boot,vendor_boot,dtbo,lk2nd}.img; do
+img="TermOS-$version-phone-$name.img"
+# A whole-disk image (/boot and / inside), or for "split" phones a root
+# image and a boot partition image; plus the boot images fastboot flashes.
+for f in "$export_dir/$device.img" "$export_dir/$device-root.img" "$export_dir/$device-boot.img" \
+         "$export_dir"/{boot,vendor_boot,dtbo,lk2nd}.img; do
     [[ -e "$f" ]] || continue
-    name="$(basename "$f")"
-    [[ "$name" == "$device.img" ]] && name="TermOS-$version-phone-$device.img"
-    cp -L --sparse=always "$f" "$stage/$name"
+    case "$(basename "$f")" in
+        "$device.img")      dest="$img" ;;
+        "$device-root.img") dest="TermOS-$version-phone-$name-root.img" ;;
+        "$device-boot.img") dest="TermOS-$version-phone-$name-bootpart.img" ;;
+        *)                  dest="$(basename "$f")" ;;
+    esac
+    cp -L --sparse=always "$f" "$stage/$dest"
 done
 shopt -u nullglob
-[[ -f "$stage/TermOS-$version-phone-$device.img" ]] || die "pmbootstrap made no $device.img"
+split=0
+[[ -f "$stage/TermOS-$version-phone-$name-root.img" ]] && split=1
+[[ -f "$stage/$img" || $split == 1 ]] || die "pmbootstrap made no image for $device"
 
 # How to flash it, from the device's own deviceinfo.
 di() { sed -n "s/^deviceinfo_$1=\"\(.*\)\"/\1/p" "$deviceinfo" | head -1; }
 method="$(di flash_method)"
 rootfs_part="$(di flash_fastboot_partition_rootfs)"; rootfs_part="${rootfs_part:-userdata}"
 kernel_part="$(di flash_fastboot_partition_kernel)"; kernel_part="${kernel_part:-boot}"
-img="TermOS-$version-phone-$device.img"
 {
     echo "TermOS $version phone edition for the $model ($device)."
+    [[ -n "$kernel" ]] && echo "This image is for phones with the \"$kernel\" display panel (kernel $kernel)."
     echo "Based on Nura $channel (formerly postmarketOS) with KDE Plasma Mobile."
     [[ "$category" == testing ]] && echo "This phone is in Nura's \"testing\" category: expect rough edges."
     echo
@@ -216,6 +236,13 @@ img="TermOS-$version-phone-$device.img"
             [[ -f "$stage/vendor_boot.img" ]] && echo "  fastboot flash vendor_boot vendor_boot.img"
             echo "  fastboot reboot"
             ;;
+        fastboot-bootpart)
+            echo "Unlock the bootloader, boot the phone into fastboot mode, and run:"
+            echo
+            echo "  fastboot flash $rootfs_part TermOS-$version-phone-$name-root.img"
+            echo "  fastboot flash $kernel_part TermOS-$version-phone-$name-bootpart.img"
+            echo "  fastboot reboot"
+            ;;
         heimdall-bootimg|heimdall-isorec|odin)
             echo "Samsung phone: flash $img to the userdata partition and boot.img to"
             echo "boot with Heimdall (or Odin), as the Nura wiki page describes."
@@ -231,11 +258,11 @@ img="TermOS-$version-phone-$device.img"
 } > "$stage/FLASHING.txt"
 
 step "compress"
-rm -f "$out/TermOS-$version-phone-$device.tar.xz"
-tar -C "$(dirname "$stage")" -cf - "$(basename "$stage")" | xz -T0 -6 > "$out/TermOS-$version-phone-$device.tar.xz"
-ls -l "$out/TermOS-$version-phone-$device.tar.xz"
+rm -f "$out/TermOS-$version-phone-$name.tar.xz"
+tar -C "$(dirname "$stage")" -cf - "$(basename "$stage")" | xz -T0 -6 > "$out/TermOS-$version-phone-$name.tar.xz"
+ls -l "$out/TermOS-$version-phone-$name.tar.xz"
 cat "$stage/FLASHING.txt"
 
 # Free the device's chroot and image for the next build.
 pmb -y zap >/dev/null 2>&1 || true
-echo "build-phone: done: $out/TermOS-$version-phone-$device.tar.xz"
+echo "build-phone: done: $out/TermOS-$version-phone-$name.tar.xz"

@@ -1,6 +1,11 @@
 # Phones the TermOS phone edition is built for, by Nura codename (Nura was
 # formerly postmarketOS). Columns: codename, Nura category, phones.
 #
+# Some phones were made with different display panels and need the kernel
+# for theirs: those have one entry (and one image) per panel, written
+# codename:kernel. The Nura wiki page for the phone says how to tell which
+# panel yours has.
+#
 # "community" devices are well supported by Nura; "testing" ones boot and
 # mostly work, but expect rough edges (calls, camera, battery life). The list
 # of what works on each phone is on the Nura wiki: https://wiki.nura.eco/
@@ -10,7 +15,8 @@
 
 fairphone-fp4       community  Fairphone 4
 google-sargo        community  Google Pixel 3a
-google-bonito       community  Google Pixel 3a XL
+google-bonito:sdc   community  Google Pixel 3a XL (Samsung panel)
+google-bonito:tianma community Google Pixel 3a XL (Tianma panel)
 oneplus-enchilada   community  OnePlus 6
 oneplus-fajita      community  OnePlus 6T
 pine64-pinephone    community  PINE64 PinePhone
@@ -18,11 +24,14 @@ pine64-pinephonepro community  PINE64 PinePhone Pro
 purism-librem5      community  Purism Librem 5
 samsung-starqltechn community  Samsung Galaxy S9 (Snapdragon, SM-G9600)
 shift-axolotl       community  SHIFT6mq
-xiaomi-beryllium    community  Xiaomi Poco F1
+xiaomi-beryllium:tianma community Xiaomi Poco F1 (Tianma panel)
+xiaomi-beryllium:ebbg community  Xiaomi Poco F1 (EBBG panel)
 qcom-msm8953        community  Snapdragon 625/450/632 phones: Xiaomi Redmi Note 4X (mido), Redmi 5 Plus (vince), Redmi 5 (rosy), Redmi 7 (onclite), Redmi S2 (ysl), Redmi 4 Prime (markw), Mi A1 (tissot), Mi A2 Lite (daisy); Motorola Moto G5 Plus (potter), G6 (ali), G7 Power (ocean)
 qcom-sm7150         community  Snapdragon 730/732 phones: Xiaomi Redmi Note 10 Pro (sweet), Poco X3 NFC (surya), Mi 9T / Redmi K20 (davinci), Mi Note 10 (tucana)
 xiaomi-whyred       testing    Xiaomi Redmi Note 5 Pro
 xiaomi-tulip        testing    Xiaomi Redmi Note 6 Pro
-xiaomi-lavender     testing    Xiaomi Redmi Note 7
+xiaomi-lavender:boe testing    Xiaomi Redmi Note 7 (BOE panel)
+xiaomi-lavender:shenchao testing Xiaomi Redmi Note 7 (Shenchao panel)
+xiaomi-lavender:tianma testing  Xiaomi Redmi Note 7 (Tianma panel)
 xiaomi-begonia      testing    Xiaomi Redmi Note 8 Pro
 xiaomi-miatoll      testing    Xiaomi Redmi Note 9S / Note 9 Pro

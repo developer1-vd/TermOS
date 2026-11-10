@@ -136,7 +136,7 @@ shutdown
 # shows in the log. (UEFI firmware copies the console there already, and
 # Fedora's signed EFI GRUB has no serial terminal.)
 echo 'GRUB_DISABLE_OS_PROBER=true' >> /etc/default/grub
-if [ ! -d /sys/firmware/efi ]; then
+if [ "$firmware" = bios ]; then
     cat >> /etc/default/grub <<'GRUB'
 GRUB_TERMINAL_OUTPUT="console serial"
 GRUB_SERIAL_COMMAND="serial --unit=0 --speed=115200"

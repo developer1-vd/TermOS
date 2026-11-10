@@ -296,13 +296,16 @@ jobs:
           sudo mkdir -p "$work"
           sudo chown "$USER" "$work"
           TERMOS_PHONE_WORK="$work/work" phone/build-phone.sh "$DEVICE" "$work/out"
-          file="TermOS-${{ needs.plan.outputs.version }}-phone-$DEVICE.tar.xz"
+          # codename:kernel (a panel variant) is codename-kernel in file names.
+          name="${DEVICE/:/-}"
+          file="TermOS-${{ needs.plan.outputs.version }}-phone-$name.tar.xz"
           (cd "$work/out" && sha256sum "$file" > "$file.sha256")
           echo "OUT=$work/out" >> "$GITHUB_ENV"
+          echo "NAME=$name" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TermOS-${{ needs.plan.outputs.version }}-phone-${{ matrix.device }}
+          name: TermOS-${{ needs.plan.outputs.version }}-phone-${{ env.NAME }}
           path: ${{ env.OUT }}/
           compression-level: 0
 
@@ -413,7 +416,8 @@ jobs:
               echo "| Codename | Phones | Nura category |"
               echo "|---|---|---|"
               grep -vE '^[[:space:]]*(#|$)' phone/devices.txt | while read -r code cat rest; do
-                has "phone-$code\\." && echo "| \`$code\` | $rest | $cat |"
+                file="${code/:/-}"
+                has "phone-$file\\." && echo "| \`$file\` | $rest | $cat |"
               done
               echo
               echo "Not possible: iPhones (Apple locks the bootloader) and the Samsung Galaxy Z Fold series (no Linux port)."

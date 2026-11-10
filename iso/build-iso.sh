@@ -268,6 +268,11 @@ build_container() {
     fi
     check_arch
     write_ks
+    # The disk image is a partitioned image that Anaconda maps with
+    # device-mapper; there's no udev in the container to create the device
+    # nodes, so device-mapper must make them itself. (The ISO build installs
+    # into a directory and doesn't need this.)
+    [[ "$image" == disk ]] && extra+=(-e DM_DISABLE_UDEV=1)
     # Anaconda's storage code needs the mkfs tools for the disk image's file
     # systems, and xz compresses the image.
     "$engine" run --rm --privileged \
