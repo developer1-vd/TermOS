@@ -200,7 +200,7 @@ img="TermOS-$version-phone-$device.img"
     echo
     echo "Flashing replaces the phone's operating system and erases its data."
     echo "Check your phone's page on the Nura wiki first (https://wiki.nura.eco/,"
-    echo "search for \"$device\"): it says how to unlock the bootloader and what works."
+    echo "search for \"$device\"): it says how to install on it and what works."
     echo
     case "$method" in
         fastboot)
