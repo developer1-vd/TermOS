@@ -9,8 +9,10 @@
 #   make art           regenerate the wallpaper and boot splash images
 #   make iso           build the live ISO (needs root on Fedora; see iso/build-iso.sh)
 #   make iso-container build the live ISO inside a Fedora container
+#   make board         build the ARM board image in a container (on an ARM64 machine)
+#   make phone DEVICE=oneplus-enchilada  build the phone edition (see phone/)
 #   make ks            only generate build/termos.ks
-#   make lint          bash -n + shellcheck + ksvalidator
+#   make lint          bash -n + shellcheck + ksvalidator (every kickstart variant)
 #   make clean         remove build/
 
 PREFIX  ?= /usr/local
@@ -25,12 +27,12 @@ SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh \
            branding/grub/install-grub-theme.sh branding/grub/42_termos \
            branding/installer/termos-live-desktop.sh branding/icons/install-icons.sh \
            branding/os-release/termos-os-release \
-           tests/install-test.sh
+           tests/install-test.sh phone/build-phone.sh
 
-.PHONY: all install uninstall install-splash install-grub install-icons install-os-release art iso iso-container ks lint clean
+.PHONY: all install uninstall install-splash install-grub install-icons install-os-release art iso iso-container board phone ks lint clean
 
 all:
-	@sed -n '3,14s/^# \{0,1\}//p' Makefile
+	@sed -n '3,16s/^# \{0,1\}//p' Makefile
 
 install:
 	install -Dm755 bin/termos-fetch               $(BINDIR)/termos-fetch
@@ -81,13 +83,24 @@ iso:
 iso-container:
 	iso/build-iso.sh --container
 
+board:
+	TERMOS_ARCH=aarch64 TERMOS_IMAGE=disk iso/build-iso.sh --container
+
+phone:
+	@test -n "$(DEVICE)" || { echo "usage: make phone DEVICE=<codename from phone/devices.txt>"; exit 1; }
+	phone/build-phone.sh "$(DEVICE)"
+
 ks:
 	iso/build-iso.sh --ks-only
 
-lint: ks
+# Check every kickstart variant: the x86-64 and ARM ISOs, and the board image.
+lint:
 	for f in $(SCRIPTS); do bash -n "$$f" || exit 1; done
 	shellcheck $(SCRIPTS)
-	ksvalidator build/termos.ks
+	for v in x86_64:live aarch64:live aarch64:disk; do \
+		TERMOS_ARCH=$${v%:*} TERMOS_IMAGE=$${v#*:} iso/build-iso.sh --ks-only || exit 1; \
+		ksvalidator build/termos.ks || exit 1; \
+	done
 
 clean:
 	rm -rf build

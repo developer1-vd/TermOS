@@ -1,213 +1,412 @@
 name: Build ISO
 
-# Manual only: a full ISO build is large and slow (about an hour).
+# Manual only: a full build is large and slow (about an hour and a half).
+#
+# Editions:
+#   pc      x86-64 live ISO (PCs, laptops, x86-64 boards like the Radxa X4)
+#   arm     aarch64 live ISO (UEFI: Snapdragon laptops, ARM servers, boards
+#           with UEFI firmware) and the aarch64 board image (Raspberry Pi,
+#           Radxa and other boards)
+#   phones  the phone edition (Nura, formerly postmarketOS, with Plasma
+#           Mobile) for every phone in phone/devices.txt
+#
+# Every Fedora image is installed (or, the board image, booted) in QEMU and
+# must reach a login prompt; only then can the run publish.
 on:
   workflow_dispatch:
     inputs:
       release:
         description: Fedora release to base on
         default: "45"
+      editions:
+        description: Which editions to build
+        type: choice
+        options: [all, pc, arm, phones]
+        default: all
       publish:
-        description: Publish the ISO to the GitHub release for this version (tag v<VERSION>)
+        description: Publish to the GitHub release for this version (tag v<VERSION>)
         type: boolean
         default: false
       test_run:
-        description: Only test the ISO an earlier run built (that run's ID); skips building and publishing
+        description: Only test the images an earlier run built (that run's ID); skips building, phones and publishing
         default: ""
 
 permissions:
-  contents: write   # only used to create the release and upload the ISO
-  actions: read     # to download an earlier run's ISO (test_run)
+  contents: write   # only used to create the release and upload the files
+  actions: read     # to download an earlier run's images (test_run)
 
 jobs:
-  iso:
-    if: ${{ inputs.test_run == '' }}
+  # Which images to build and test, and which phones, from the inputs.
+  plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 300
     outputs:
-      version: ${{ steps.version.outputs.version }}
-      artifact: TermOS-${{ steps.version.outputs.version }}-fedora${{ inputs.release }}-x86_64
+      version: ${{ steps.plan.outputs.version }}
+      builds: ${{ steps.plan.outputs.builds }}
+      tests: ${{ steps.plan.outputs.tests }}
+      phones: ${{ steps.plan.outputs.phones }}
     steps:
       - uses: actions/checkout@v5
 
-      - name: Read the TermOS version
-        id: version
-        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Plan the jobs
+        id: plan
+        env:
+          EDITIONS: ${{ inputs.editions || 'all' }}
+          TEST_RUN: ${{ inputs.test_run }}
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          python3 - "$version" <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, sys
+          version = sys.argv[1]
+          editions = os.environ["EDITIONS"]
+          test_run = os.environ["TEST_RUN"]
+          want = lambda e: editions in ("all", e)
+          x86, arm = "ubuntu-24.04", "ubuntu-24.04-arm"
+          # variant: artifact suffix; file: the image in it.
+          builds = []
+          if want("pc"):
+              builds.append({"variant": "x86_64", "runner": x86, "arch": "x86_64", "image": "live",
+                             "file": f"TermOS-{version}-x86_64.iso"})
+          if want("arm"):
+              builds.append({"variant": "aarch64", "runner": arm, "arch": "aarch64", "image": "live",
+                             "file": f"TermOS-{version}-aarch64.iso"})
+              builds.append({"variant": "aarch64-board", "runner": arm, "arch": "aarch64", "image": "disk",
+                             "file": f"TermOS-{version}-aarch64-board.raw.xz"})
+          qemu = {"x86_64": "qemu-system-x86-core edk2-ovmf",
+                  "aarch64": "qemu-system-aarch64-core edk2-aarch64"}
+          tests = []
+          for b in builds:
+              firmwares = ["bios", "uefi"] if b["arch"] == "x86_64" else ["uefi"]
+              for fw in firmwares:
+                  tests.append({**b, "firmware": fw, "qemu": qemu[b["arch"]],
+                                # Emulated ARM (no KVM on ARM runners) boots slowly.
+                                "timeout": 1200 if b["arch"] == "x86_64" else 3000})
+          phones = []
+          if want("phones") and not test_run:
+              for line in open("phone/devices.txt"):
+                  line = line.strip()
+                  if line and not line.startswith("#"):
+                      phones.append(line.split()[0])
+          if test_run:
+              builds = []
+          print(f"version={version}")
+          print(f"builds={json.dumps(builds)}")
+          print(f"tests={json.dumps(tests)}")
+          print(f"phones={json.dumps(phones)}")
+          PY
+          cat "$GITHUB_OUTPUT"
+
+  # Build the Fedora images: each on a runner of its own architecture.
+  iso:
+    needs: plan
+    if: ${{ needs.plan.outputs.builds != '[]' }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.builds) }}
+    name: build (${{ matrix.variant }})
+    steps:
+      - uses: actions/checkout@v5
 
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
-          df -h / /mnt
+          df -h / /mnt 2>/dev/null || df -h /
 
       # Docker runs the Fedora build container as root, which loop devices
-      # need. The build's scratch space goes on /mnt, the runner's bigger disk.
-      - name: Build ISO in a Fedora container
+      # need. The build's scratch space goes on the runner's biggest disk.
+      - name: Build in a Fedora container
         env:
           TERMOS_RELEASE: ${{ inputs.release }}
+          TERMOS_ARCH: ${{ matrix.arch }}
+          TERMOS_IMAGE: ${{ matrix.image }}
           TERMOS_ENGINE: docker
-          TERMOS_WORKDIR: /mnt/termos-build
         run: |
-          sudo mkdir -p "$TERMOS_WORKDIR"
-          iso/build-iso.sh --container
+          work=/var/tmp/termos-build
+          if [ -d /mnt ] && [ "$(df --output=avail /mnt | tail -1)" -gt "$(df --output=avail / | tail -1)" ]; then
+            work=/mnt/termos-build
+          fi
+          sudo mkdir -p "$work"
+          TERMOS_WORKDIR="$work" iso/build-iso.sh --container
           ls -l build/out
 
-      # GitHub release files must be under 2 GiB, so a bigger ISO is split
-      # into parts that are joined again with cat.
-      - name: Prepare release files
-        id: files
+      - name: Checksum
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          FILE: ${{ matrix.file }}
         run: |
-          dir="$RUNNER_TEMP/release"
-          mkdir -p "$dir"
-          iso="TermOS-$VERSION-x86_64.iso"
-          cp "build/out/$iso" "$dir/"
-          cd "$dir"
-          sha256sum "$iso" > SHA256SUMS
-          if [ "$(stat -c %s "$iso")" -gt 2000000000 ]; then
-            split -b 1900M -d -a 1 "$iso" "$iso.part"
-            rm "$iso"
-            sha256sum "$iso".part* >> SHA256SUMS
-          fi
-          ls -l
-          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          sudo chown -R "$USER" build/out
+          cd build/out
+          sha256sum "$FILE" > "$FILE.sha256"
+          cat "$FILE.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: TermOS-${{ steps.version.outputs.version }}-fedora${{ inputs.release }}-x86_64
-          path: ${{ steps.files.outputs.dir }}/*
+          name: TermOS-${{ needs.plan.outputs.version }}-fedora${{ inputs.release }}-${{ matrix.variant }}
+          path: |
+            build/out/${{ matrix.file }}
+            build/out/${{ matrix.file }}.sha256
           compression-level: 0
 
-  # Install the ISO's system with Anaconda (the real installer, unattended
-  # from a kickstart) onto a virtual disk, then boot it, on BIOS and on UEFI.
-  # Only a passing ISO gets published.
+  # Install each live ISO's system with Anaconda (the real installer,
+  # unattended from a kickstart) onto a virtual disk and boot it, on BIOS and
+  # UEFI (x86-64) or UEFI (ARM). The board image has no installer: it's booted
+  # as it is. Only passing images get published.
   install-test:
-    needs: iso
-    # Runs after a successful build, or on its own with test_run.
-    if: ${{ always() && (needs.iso.result == 'success' || inputs.test_run != '') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    needs: [plan, iso]
+    # After the builds, or on its own with test_run.
+    if: ${{ !cancelled() && needs.plan.outputs.tests != '[]' && (needs.iso.result != 'skipped' || inputs.test_run != '') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
-        firmware: [bios, uefi]
+        include: ${{ fromJSON(needs.plan.outputs.tests) }}
+    name: install-test (${{ matrix.variant }}, ${{ matrix.firmware }})
     steps:
       - uses: actions/checkout@v5
 
-      - name: Read the TermOS version
-        id: version
-        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
-
       - uses: actions/download-artifact@v4
         with:
-          name: TermOS-${{ steps.version.outputs.version }}-fedora${{ inputs.release }}-x86_64
-          path: iso-files
+          name: TermOS-${{ needs.plan.outputs.version }}-fedora${{ inputs.release }}-${{ matrix.variant }}
+          path: image-files
           run-id: ${{ inputs.test_run || github.run_id }}
           github-token: ${{ github.token }}
 
-      - name: Join the ISO and take out its root filesystem
+      # Older runs uploaded the ISO in parts with a SHA256SUMS file; newer
+      # ones upload it whole with FILE.sha256.
+      - name: Check the image (and take out the ISO's root filesystem)
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          FILE: ${{ matrix.file }}
         run: |
-          sudo mkdir -p /mnt/test /mnt/iso
-          sudo chown "$USER" /mnt/test
-          iso="TermOS-$VERSION-x86_64.iso"
-          cd iso-files
-          if ls "$iso".part* >/dev/null 2>&1; then
-            cat "$iso".part* > "/mnt/test/$iso"
-          else
-            mv "$iso" "/mnt/test/$iso"
+          work=/var/tmp/termos-test
+          if [ -d /mnt ] && [ "$(df --output=avail /mnt | tail -1)" -gt "$(df --output=avail / | tail -1)" ]; then
+            work=/mnt/termos-test
           fi
-          cd /mnt/test
-          sha256sum --check --ignore-missing "$GITHUB_WORKSPACE/iso-files/SHA256SUMS"
-          sudo mount -o loop,ro "$iso" /mnt/iso
-          cp /mnt/iso/LiveOS/squashfs.img /mnt/test/
-          sudo umount /mnt/iso
-          rm "$iso"
-          df -h /mnt
+          sudo mkdir -p "$work"
+          sudo chown "$USER" "$work"
+          echo "WORK=$work" >> "$GITHUB_ENV"
+          cd image-files
+          if ls "$FILE".part* >/dev/null 2>&1; then
+            cat "$FILE".part* > "$work/$FILE"
+            rm "$FILE".part*
+          else
+            mv "$FILE" "$work/$FILE"
+          fi
+          cd "$work"
+          if [ -f "$GITHUB_WORKSPACE/image-files/$FILE.sha256" ]; then
+            sha256sum --check "$GITHUB_WORKSPACE/image-files/$FILE.sha256"
+          else
+            sha256sum --check --ignore-missing "$GITHUB_WORKSPACE/image-files/SHA256SUMS"
+          fi
+          case "$FILE" in
+            *.iso)
+              sudo mkdir -p /mnt/iso
+              sudo mount -o loop,ro "$FILE" /mnt/iso
+              cp /mnt/iso/LiveOS/squashfs.img "$work/"
+              sudo umount /mnt/iso
+              rm "$FILE"
+              echo "IMAGE=squashfs.img" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "IMAGE=$FILE" >> "$GITHUB_ENV"
+              ;;
+          esac
+          df -h "$work"
 
       - name: Let the test use KVM
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          ls -l /dev/kvm
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            ls -l /dev/kvm
+          else
+            echo "No KVM on this runner: QEMU emulates the CPU (slower)."
+          fi
 
       # Anaconda checks for the btrfs kernel module (the container shares the
       # runner's kernel, so it gets the runner's modules).
-      - name: Install with Anaconda and boot the installed system
+      - name: Install with Anaconda (or take the board image) and boot it
         env:
           FEDORA: ${{ inputs.release }}
           FIRMWARE: ${{ matrix.firmware }}
+          QEMU_PKGS: ${{ matrix.qemu }}
+          TIMEOUT: ${{ matrix.timeout }}
         run: |
           sudo modprobe btrfs
           docker run --rm --privileged -v /dev:/dev -v /lib/modules:/lib/modules:ro \
-            -v "$GITHUB_WORKSPACE:/src:ro" -v /mnt/test:/work -e FIRMWARE \
+            -v "$GITHUB_WORKSPACE:/src:ro" -v "$WORK:/work" \
+            -e FIRMWARE -e QEMU_PKGS -e TIMEOUT -e IMAGE \
             "registry.fedoraproject.org/fedora:$FEDORA" bash -c '
-              dnf install -y -q anaconda-tui qemu-system-x86-core edk2-ovmf util-linux rsync \
+              dnf install -y -q anaconda-tui $QEMU_PKGS util-linux rsync xz \
                 e2fsprogs xfsprogs btrfs-progs dosfstools \
-              && /src/tests/install-test.sh /work/squashfs.img /work/disk.img 1200 "$FIRMWARE"'
+              && /src/tests/install-test.sh "/work/$IMAGE" /work/disk.img "$TIMEOUT" "$FIRMWARE"'
+
+      - name: Collect the logs
+        if: always()
+        run: |
+          mkdir -p test-logs
+          cp -r "$WORK"/*.serial.log "$WORK"/anaconda-logs test-logs/ 2>/dev/null || true
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: install-test-logs-${{ matrix.firmware }}
-          path: |
-            /mnt/test/*.serial.log
-            /mnt/test/anaconda-logs/
+          name: install-test-logs-${{ matrix.variant }}-${{ matrix.firmware }}
+          path: test-logs/
           if-no-files-found: ignore
 
-  publish:
-    needs: [iso, install-test]
-    if: ${{ inputs.publish && inputs.test_run == '' }}
-    runs-on: ubuntu-24.04
+  # The phone edition, one image per phone, built natively on ARM runners
+  # with Nura's pmbootstrap.
+  phone:
+    needs: plan
+    if: ${{ needs.plan.outputs.phones != '[]' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        device: ${{ fromJSON(needs.plan.outputs.phones) }}
+    name: phone (${{ matrix.device }})
     steps:
       - uses: actions/checkout@v5
 
+      - name: Install pmbootstrap's tools
+        run: sudo apt-get install -y -q kpartx xz-utils
+
+      - name: Build the phone image
+        env:
+          DEVICE: ${{ matrix.device }}
+        run: |
+          work=/var/tmp/termos-phone
+          if [ -d /mnt ] && [ "$(df --output=avail /mnt | tail -1)" -gt "$(df --output=avail / | tail -1)" ]; then
+            work=/mnt/termos-phone
+          fi
+          sudo mkdir -p "$work"
+          sudo chown "$USER" "$work"
+          TERMOS_PHONE_WORK="$work/work" phone/build-phone.sh "$DEVICE" "$work/out"
+          file="TermOS-${{ needs.plan.outputs.version }}-phone-$DEVICE.tar.xz"
+          (cd "$work/out" && sha256sum "$file" > "$file.sha256")
+          echo "OUT=$work/out" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TermOS-${{ needs.plan.outputs.version }}-phone-${{ matrix.device }}
+          path: ${{ env.OUT }}/
+          compression-level: 0
+
+  publish:
+    needs: [plan, iso, install-test, phone]
+    # Only if everything that ran passed (editions not chosen are skipped).
+    if: >-
+      ${{ !cancelled() && inputs.publish && inputs.test_run == ''
+          && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          sudo mkdir -p /mnt/release
+          sudo chown "$USER" /mnt/release
+          df -h / /mnt
+
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.iso.outputs.artifact }}
-          path: release
+          pattern: TermOS-${{ needs.plan.outputs.version }}-*
+          path: /mnt/release
+          merge-multiple: true
 
+      # GitHub release files must be under 2 GiB, so bigger files are split
+      # into parts that are joined again with cat. SHA256SUMS lists every
+      # whole file and every part, and keeps the entries of files already on
+      # the release that this run didn't rebuild.
       - name: Publish to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.iso.outputs.version }}
+          VERSION: ${{ needs.plan.outputs.version }}
           FEDORA: ${{ inputs.release }}
         run: |
           tag="v$VERSION"
-          iso="TermOS-$VERSION-x86_64.iso"
+          cd /mnt/release
+          ls -l
+          new_sums="$RUNNER_TEMP/new-sums"
+          : > "$new_sums"
+          files=()
+          for sum in *.sha256; do
+            f="${sum%.sha256}"
+            cat "$sum" >> "$new_sums"
+            rm "$sum"
+            files+=("$f")
+            if [ "$(stat -c %s "$f")" -gt 2000000000 ]; then
+              split -b 1900M -d -a 1 "$f" "$f.part"
+              rm "$f"
+              sha256sum "$f".part* >> "$new_sums"
+            fi
+          done
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --title "TermOS $VERSION" --notes "TermOS $VERSION"
+          fi
+          # Drop this run's files from the release first (whole or in parts),
+          # so no stale part is left behind, and from the old SHA256SUMS.
+          old_sums="$RUNNER_TEMP/old-sums"
+          gh release download "$tag" --pattern SHA256SUMS --output "$old_sums" 2>/dev/null || : > "$old_sums"
+          existing="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+          for f in "${files[@]}"; do
+            for a in $existing; do
+              case "$a" in "$f"|"$f".part*) gh release delete-asset "$tag" "$a" --yes ;; esac
+            done
+            awk -v f="$f" '{ n = $2; sub(/^\*/, "", n) } n != f && index(n, f ".part") != 1' \
+              "$old_sums" > "$old_sums.tmp" && mv "$old_sums.tmp" "$old_sums"
+          done
+          sort -k2 -u "$old_sums" "$new_sums" > SHA256SUMS
+          cat SHA256SUMS
+          gh release upload "$tag" --clobber ./*
+
+          # Release notes: the changelog, then what's on the release now.
+          assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+          has() { printf '%s\n' "$assets" | grep -q "$1"; }
           notes="$RUNNER_TEMP/notes.md"
           {
-            echo "TermOS $VERSION, based on Fedora $FEDORA."
+            echo "TermOS $VERSION, based on Fedora $FEDORA (phones: Nura, formerly postmarketOS)."
             echo
-            # This version's section of CHANGELOG.md, without its heading.
             awk -v v="## v$VERSION" '$0 ~ "^"v {f=1; next} f && /^## / {exit} f' CHANGELOG.md
             echo
             echo "## Download"
             echo
-            if ls release/"$iso".part* >/dev/null 2>&1; then
-              echo "The ISO is split into parts (GitHub limits release files to 2 GiB)."
-              echo "Download every \`$iso.part*\` file and \`SHA256SUMS\`, then join and check them:"
-              echo
-              echo '```bash'
-              echo "cat $iso.part* > $iso"
-              echo "sha256sum --check --ignore-missing SHA256SUMS"
-              echo '```'
-            else
-              echo "Download \`$iso\` and \`SHA256SUMS\`, then check it:"
-              echo
-              echo '```bash'
-              echo "sha256sum --check --ignore-missing SHA256SUMS"
-              echo '```'
-            fi
+            echo "| For | File |"
+            echo "|---|---|"
+            has "x86_64.iso" && echo "| PCs and laptops (x86-64), x86-64 boards such as the Radxa X4 | \`TermOS-$VERSION-x86_64.iso\` |"
+            has "aarch64.iso" && echo "| ARM64 with UEFI: Snapdragon laptops, ARM servers and VMs, boards with UEFI firmware (Radxa Dragon, Radxa Orion) | \`TermOS-$VERSION-aarch64.iso\` |"
+            has "aarch64-board" && echo "| ARM64 boards: Raspberry Pi 3/4/5, Radxa ROCK Pi 4 and other U-Boot boards | \`TermOS-$VERSION-aarch64-board.raw.xz\` |"
+            has "phone-" && echo "| Phones (see the list below) | \`TermOS-$VERSION-phone-<codename>.tar.xz\` |"
             echo
-            echo "Write it to a USB stick with Fedora Media Writer, then boot from it and double-click **Install TermOS**."
+            echo "Files over 2 GiB are split into \`.part0\`, \`.part1\`, ... (GitHub's limit for release files)."
+            echo "Download every part of the file you want, and \`SHA256SUMS\`, then join and check:"
+            echo
+            echo '```bash'
+            echo "cat TermOS-$VERSION-x86_64.iso.part* > TermOS-$VERSION-x86_64.iso"
+            echo "sha256sum --check --ignore-missing SHA256SUMS"
+            echo '```'
+            echo
+            echo "- **ISO:** write it to a USB stick with Fedora Media Writer, boot from it and double-click **Install TermOS**."
+            echo "- **Board image:** \`xz -d\` it and write it to an SD card or disk (Fedora Media Writer, or Fedora's \`arm-image-installer --resizefs\`). The first boot asks for a user name and password."
+            echo "- **Phones:** unpack the \`.tar.xz\` and follow \`FLASHING.txt\` inside. Log in as \`termos\` with PIN \`837667\`. Phone images are not boot-tested in CI."
+            if has "phone-"; then
+              echo
+              echo "### Phones"
+              echo
+              echo "| Codename | Phones | Nura category |"
+              echo "|---|---|---|"
+              grep -vE '^[[:space:]]*(#|$)' phone/devices.txt | while read -r code cat rest; do
+                has "phone-$code\\." && echo "| \`$code\` | $rest | $cat |"
+              done
+              echo
+              echo "Not possible: iPhones (Apple locks the bootloader) and the Samsung Galaxy Z Fold series (no Linux port)."
+            fi
           } > "$notes"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release edit "$tag" --notes-file "$notes"
-          else
-            gh release create "$tag" --target "$GITHUB_SHA" --title "TermOS $VERSION" --notes-file "$notes"
-          fi
-          gh release upload "$tag" --clobber release/*
+          gh release edit "$tag" --notes-file "$notes"

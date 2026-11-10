@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build-iso.sh: build the TermOS live ISO.
+# build-iso.sh: build the TermOS live ISO, or the ARM board disk image.
 #
 #   sudo iso/build-iso.sh               build on a Fedora host
 #   iso/build-iso.sh --container        build inside a Fedora container (podman or docker)
@@ -7,14 +7,20 @@
 #
 # Environment:
 #   TERMOS_RELEASE   Fedora release to base on (default: 45)
-#   TERMOS_ARCH      architecture (default: x86_64)
-#   TERMOS_DARLING   1 to preinstall Darling for macOS apps (default), 0 to skip
+#   TERMOS_ARCH      x86_64 or aarch64 (default: this machine's); the build
+#                    runs natively, so build aarch64 on an ARM64 machine
+#   TERMOS_IMAGE     live: the live ISO with the installer (default);
+#                    disk: a ready-to-boot disk image for ARM boards (aarch64)
+#   TERMOS_DARLING   1 to preinstall Darling for macOS apps (default on
+#                    x86_64), 0 to skip (Darling is x86-64 only)
 #   TERMOS_ENGINE    --container only: podman or docker (default: podman if installed)
 #   TERMOS_WORKDIR   --container only: host directory for the build's scratch
 #                    space (/var/tmp in the container), e.g. on a bigger disk
 #
-# The ISO lands in build/out/. A full build needs ~15 GB of free disk space,
-# root, loop devices, and a network connection to the Fedora mirrors.
+# The ISO (TermOS-VERSION-ARCH.iso) or the disk image
+# (TermOS-VERSION-aarch64-board.raw.xz) lands in build/out/. A full build
+# needs ~20 GB of free disk space, root, loop devices, device-mapper (for the
+# disk image) and a network connection to the Fedora mirrors.
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,10 +32,26 @@ die() { echo "build-iso: $*" >&2; exit 1; }
 # TermOS's own version (VERSION file), and the Fedora release it's built on.
 version="$(tr -d '[:space:]' < "$repo/VERSION")"
 release="${TERMOS_RELEASE:-45}"
-arch="${TERMOS_ARCH:-x86_64}"
-darling="${TERMOS_DARLING:-1}"
+arch="${TERMOS_ARCH:-$(uname -m)}"
+image="${TERMOS_IMAGE:-live}"
 [[ "$version" =~ ^[0-9]+(\.[0-9]+)*$ ]] || die "VERSION must look like 0.1, got '$version'"
 [[ "$release" =~ ^[0-9]+$ ]] || die "TERMOS_RELEASE must be a Fedora release number, got '$release'"
+case "$arch" in
+    x86_64)  darling="${TERMOS_DARLING:-1}" ;;
+    aarch64) darling="${TERMOS_DARLING:-0}"
+             [[ "$darling" == 0 ]] || die "Darling is x86-64 only; use TERMOS_DARLING=0 for aarch64" ;;
+    *)       die "TERMOS_ARCH must be x86_64 or aarch64, got '$arch'" ;;
+esac
+case "$image" in
+    live) ;;
+    disk) [[ "$arch" == aarch64 ]] || die "the board disk image is aarch64 only (x86-64 boards boot the ISO)" ;;
+    *)    die "TERMOS_IMAGE must be live or disk, got '$image'" ;;
+esac
+if [[ "$image" == disk ]]; then
+    out_name="TermOS-$version-$arch-board.raw"
+else
+    out_name="TermOS-$version-$arch.iso"
+fi
 
 # Append a heredoc to the kickstart that recreates $src at $dest on the image.
 # Text files are copied as-is; binary files (images) are base64-encoded.
@@ -58,12 +80,29 @@ embed_tree() {
     done < <(cd "$src_dir" && find . -type f ! -name '*.py' -printf '%P\n' | sort)
 }
 
+# Keep the template's "# @@IF key=value@@ ... # @@ENDIF@@" blocks that hold
+# for this build (arch, image, darling), drop the others and the markers.
+filter_ks() {
+    awk -v arch="$arch" -v image="$image" -v darling="$darling" '
+        BEGIN { v["arch"] = arch; v["image"] = image; v["darling"] = darling; keep = 1 }
+        /^# @@IF [a-z]+=[A-Za-z0-9_]+@@$/ {
+            if (inside) { print "nested @@IF at line " NR > "/dev/stderr"; exit 1 }
+            split(substr($3, 1, length($3) - 2), kv, "=")
+            if (!(kv[1] in v)) { print "unknown @@IF key " kv[1] > "/dev/stderr"; exit 1 }
+            inside = 1; keep = (v[kv[1]] == kv[2]); next
+        }
+        /^# @@ENDIF@@$/ { inside = 0; keep = 1; next }
+        /^# @@(IF|ENDIF)/ { print "bad marker at line " NR ": " $0 > "/dev/stderr"; exit 1 }
+        keep { print }
+        END { if (inside) { print "unclosed @@IF" > "/dev/stderr"; exit 1 } }
+    ' "$1"
+}
+
 write_ks() {
     mkdir -p "$build"
-    local strip='/^# @@DARLING_BEGIN@@$/,/^# @@DARLING_END@@$/d'
-    [[ "$darling" == 0 ]] || strip='/^# @@DARLING_\(BEGIN\|END\)@@$/d'
-    sed -e "s/@@RELEASE@@/$release/g" -e "s/@@VERSION@@/$version/g" -e "$strip" \
-        "$repo/iso/termos.ks.in" > "$ks"
+    filter_ks "$repo/iso/termos.ks.in" \
+        | sed -e "s/@@RELEASE@@/$release/g" -e "s/@@VERSION@@/$version/g" > "$ks"
+    [[ -s "$ks" ]] || die "couldn't write the kickstart"
     # Put our %post first: kickstart runs %post sections in file order, so
     # insert it right before the template's first %post.
     local files_ks="$build/files.ks"
@@ -113,7 +152,7 @@ write_ks() {
         { print }
     ' "$ks" > "$ks.tmp" && mv "$ks.tmp" "$ks"
     rm -f "$files_ks"
-    echo "build-iso: wrote $ks (TermOS $version on Fedora $release, Darling: $([[ "$darling" == 0 ]] && echo no || echo yes))"
+    echo "build-iso: wrote $ks (TermOS $version on Fedora $release, $arch $image, Darling: $([[ "$darling" == 0 ]] && echo no || echo yes))"
 }
 
 # The ISO's own boot menus come from lorax's live templates. Copy them and
@@ -123,6 +162,7 @@ prepare_templates() {
     local src=/usr/share/lorax/templates.d/99-generic
     local dest="$build/lorax-templates"
     [[ -d "$src/live" ]] || die "lorax templates not found at $src"
+    mkdir -p "$build"
     rm -rf "$dest"
     cp -r "$src" "$dest"
 
@@ -140,43 +180,73 @@ if [ -f ($root)/boot/grub2/themes/termos/theme.txt ]; then
   set theme=($root)/boot/grub2/themes/termos/theme.txt
 fi
 CFG
-    local cfg
-    for cfg in "$dest"/live/config_files/x86/grub2-bios.cfg "$dest"/live/config_files/x86/grub2-efi.cfg; do
+    local cfg cfgs
+    case "$arch" in
+        x86_64)  cfgs=("$dest"/live/config_files/x86/grub2-bios.cfg "$dest"/live/config_files/x86/grub2-efi.cfg) ;;
+        aarch64) cfgs=("$dest"/live/config_files/aarch64/grub2-efi.cfg) ;;
+    esac
+    for cfg in "${cfgs[@]}"; do
         grep -q "^search .*@ISOLABEL@" "$cfg" || die "unexpected lorax template: $cfg"
         sed -i "/^search .*@ISOLABEL@/r $theme_block" "$cfg"
         # Menu entries say "Start TermOS 0.1" rather than the Fedora release.
         sed -i "s/@VERSION@/$version/g" "$cfg"
     done
-    # Put the theme on the ISO next to the BIOS grub.cfg; UEFI GRUB finds it
-    # there too, since both menus search for the ISO by label first.
-    # (${GRUB2DIR} is a lorax template variable, so it stays unexpanded.)
-    # shellcheck disable=SC2016
-    grep -q '^mkdir ${GRUB2DIR}$' "$dest/live/x86.tmpl" || die "unexpected lorax x86.tmpl"
-    # shellcheck disable=SC2016
-    sed -i 's|^mkdir ${GRUB2DIR}$|mkdir ${GRUB2DIR}\nmkdir ${GRUB2DIR}/themes/termos\ninstall boot/grub2/themes/termos/* ${GRUB2DIR}/themes/termos/|' \
-        "$dest/live/x86.tmpl"
     rm -f "$theme_block"
+    # Put the theme on the ISO at /boot/grub2/themes/termos, where the menus
+    # look for it (they search for the ISO by label first). The ${...} are
+    # lorax template variables, so they stay unexpanded.
+    # shellcheck disable=SC2016
+    case "$arch" in
+        x86_64)
+            grep -q '^mkdir ${GRUB2DIR}$' "$dest/live/x86.tmpl" || die "unexpected lorax x86.tmpl"
+            sed -i 's|^mkdir ${GRUB2DIR}$|mkdir ${GRUB2DIR}\nmkdir ${GRUB2DIR}/themes/termos\ninstall boot/grub2/themes/termos/* ${GRUB2DIR}/themes/termos/|' \
+                "$dest/live/x86.tmpl"
+            ;;
+        aarch64)
+            # The aarch64 template lists every directory that goes on the
+            # ISO, so add boot/ to that list as well.
+            if ! grep -q '^mkdir ${KERNELDIR}$' "$dest/live/aarch64.tmpl" \
+                || ! grep -q '^       ${LIVEDIR}=${outroot}/${LIVEDIR} \\$' "$dest/live/aarch64.tmpl"; then
+                die "unexpected lorax aarch64.tmpl"
+            fi
+            sed -i -e 's|^mkdir ${KERNELDIR}$|mkdir ${KERNELDIR}\nmkdir boot/grub2/themes/termos\ninstall boot/grub2/themes/termos/* boot/grub2/themes/termos/|' \
+                -e 's|^       ${LIVEDIR}=${outroot}/${LIVEDIR} \\$|&\n       boot=${outroot}/boot \\|' \
+                "$dest/live/aarch64.tmpl"
+            ;;
+    esac
+}
+
+# The image is built natively (Anaconda installs into it with this machine's
+# own tools), so the machine must be the image's architecture.
+check_arch() {
+    [[ "$(uname -m)" == "$arch" ]] \
+        || die "building $arch needs a $arch machine (this one is $(uname -m))"
 }
 
 build_host() {
     [[ $EUID -eq 0 ]] || die "run as root (sudo), or use --container"
     command -v livemedia-creator >/dev/null || die "install lorax: sudo dnf install lorax anaconda-tui"
+    check_arch
     write_ks
-    prepare_templates
     rm -rf "$build/out"
-    livemedia-creator \
-        --ks "$ks" \
-        --lorax-templates "$build/lorax-templates" \
-        --no-virt \
-        --make-iso \
-        --iso-only \
-        --project TermOS \
-        --releasever "$release" \
-        --volid "TermOS-$version" \
-        --iso-name "TermOS-$version-$arch.iso" \
-        --resultdir "$build/out" \
-        --logfile "$build/livemedia.log"
-    echo "build-iso: done: $build/out/TermOS-$version-$arch.iso"
+    local common=(--ks "$ks" --no-virt --project TermOS --releasever "$release"
+                  --resultdir "$build/out" --logfile "$build/livemedia.log")
+    if [[ "$image" == live ]]; then
+        prepare_templates
+        livemedia-creator "${common[@]}" \
+            --lorax-templates "$build/lorax-templates" \
+            --make-iso \
+            --iso-only \
+            --volid "TermOS-$version" \
+            --iso-name "$out_name"
+    else
+        livemedia-creator "${common[@]}" \
+            --make-disk \
+            --image-name "$out_name"
+        xz -T0 -6 "$build/out/$out_name"
+        out_name="$out_name.xz"
+    fi
+    echo "build-iso: done: $build/out/$out_name"
 }
 
 build_container() {
@@ -193,20 +263,24 @@ build_container() {
         mkdir -p "$TERMOS_WORKDIR"
         extra+=(-v "$TERMOS_WORKDIR:/var/tmp:z")
     fi
+    check_arch
     write_ks
+    # Anaconda's storage code needs the mkfs tools for the disk image's file
+    # systems, and xz compresses the image.
     "$engine" run --rm --privileged \
         -v /dev:/dev \
         -v "$repo:/src:z" \
         "${extra[@]}" \
         -e TERMOS_RELEASE="$release" -e TERMOS_ARCH="$arch" -e TERMOS_DARLING="$darling" \
+        -e TERMOS_IMAGE="$image" \
         "registry.fedoraproject.org/fedora:$release" \
-        bash -c 'dnf install -y lorax anaconda-tui && /src/iso/build-iso.sh'
+        bash -c 'dnf install -y lorax anaconda-tui e2fsprogs dosfstools xz && /src/iso/build-iso.sh'
 }
 
 case "${1:-}" in
     "")           build_host ;;
     --container)  build_container ;;
     --ks-only)    write_ks ;;
-    -h|--help)    sed -n '2,15s/^# \{0,1\}//p' "$0" ;;
+    -h|--help)    sed -n '2,24s/^# \{0,1\}//p' "$0" ;;
     *)            die "unknown option: $1 (see --help)" ;;
 esac
