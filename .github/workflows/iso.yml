@@ -23,6 +23,9 @@ on:
         type: choice
         options: [all, pc, arm, phones]
         default: all
+      devices:
+        description: Phones only - build just these codenames (space-separated; empty for every phone in phone/devices.txt)
+        default: ""
       publish:
         description: Publish to the GitHub release for this version (tag v<VERSION>)
         type: boolean
@@ -52,6 +55,7 @@ jobs:
         env:
           EDITIONS: ${{ inputs.editions || 'all' }}
           TEST_RUN: ${{ inputs.test_run }}
+          DEVICES: ${{ inputs.devices }}
         run: |
           version="$(tr -d '[:space:]' < VERSION)"
           python3 - "$version" <<'PY' >> "$GITHUB_OUTPUT"
@@ -86,6 +90,12 @@ jobs:
                   line = line.strip()
                   if line and not line.startswith("#"):
                       phones.append(line.split()[0])
+              only = os.environ.get("DEVICES", "").replace(",", " ").split()
+              if only:
+                  unknown = sorted(set(only) - set(phones))
+                  if unknown:
+                      sys.exit(f"not in phone/devices.txt: {' '.join(unknown)}")
+                  phones = [p for p in phones if p in only]
           if test_run:
               builds = []
           print(f"version={version}")

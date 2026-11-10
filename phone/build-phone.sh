@@ -59,6 +59,13 @@ pmb() {
     python3 "$work/pmbootstrap/pmbootstrap.py" \
         --config "$work/pmbootstrap.cfg" --work "$work/pmb-work" "$@"
 }
+# pmbootstrap keeps the failing command's output in its own log; show it.
+pmb_or_log() {
+    pmb "$@" && return
+    echo "build-phone: ---- pmbootstrap log (last 120 lines)" >&2
+    tail -n 120 "$work/pmb-work/log.txt" >&2 || true
+    die "pmbootstrap $1 failed"
+}
 
 # ---- pmbootstrap and pmaports ------------------------------------------------
 if [[ ! -d "$work/pmbootstrap/.git" ]]; then
@@ -120,6 +127,7 @@ depends="bash fastfetch fortune"
 makedepends="fortune"
 options="!check"
 source="termos-phone-files.tar.gz"
+builddir="\$srcdir"
 
 package() {
 	cp -a "\$srcdir"/root/. "\$pkgdir"/
@@ -154,14 +162,14 @@ if [[ ! -f "$work/pmb-work/version" ]]; then
 fi
 
 step "build and install (Nura $channel, Plasma Mobile)"
-pmb -y build termos-phone --force
-pmb -y install --password "$pin"
+pmb_or_log -y build termos-phone --force
+pmb_or_log -y install --password "$pin"
 
 # ---- Collect the images ------------------------------------------------------
 step "collect the images"
 export_dir="$work/export-$device"
 rm -rf "$export_dir"
-pmb export "$export_dir" >/dev/null
+pmb_or_log export "$export_dir" >/dev/null
 stage="$work/stage/TermOS-$version-phone-$device"
 rm -rf "$stage"
 mkdir -p "$stage"
