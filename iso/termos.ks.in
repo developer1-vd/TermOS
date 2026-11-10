@@ -31,6 +31,7 @@ bootloader --location=none
 # (a 32 GB card or bigger), like the ISO's 20 GB root; arm-image-installer
 # --resizefs grows / to fill the card or disk.
 services --enabled=NetworkManager,sshd,plasma-setup
+network --hostname=termos
 zerombr
 clearpart --all --initlabel --disklabel=msdos
 part /boot/efi --fstype=efi --size=600
