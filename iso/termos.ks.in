@@ -81,8 +81,9 @@ podman
 nix
 nix-daemon
 
-# Windows apps. (On ARM, Wine runs ARM64 Windows apps; FEX runs x86 Linux
-# programs.)
+# Windows apps: x86-64 only. Fedora doesn't build Wine for ARM, and the
+# tools around it (Bottles, Winetricks, Protontricks) need it.
+# @@IF arch=x86_64@@
 wine
 wine-mono
 mingw32-wine-gecko
@@ -90,8 +91,10 @@ mingw64-wine-gecko
 wine-dxvk
 winetricks
 bottles
-lutris
 protontricks
+# @@ENDIF@@
+# Games (Lutris also runs native Linux games).
+lutris
 
 # BSD apps (run in a VM).
 qemu-kvm
