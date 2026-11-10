@@ -130,6 +130,7 @@ source="termos-phone-files.tar.gz"
 builddir="\$srcdir"
 
 package() {
+	mkdir -p "\$pkgdir"
 	cp -a "\$srcdir"/root/. "\$pkgdir"/
 	strfile "\$pkgdir"/usr/share/fortune/termos >/dev/null
 }
