@@ -9,6 +9,51 @@ See [CHANGELOG.md](CHANGELOG.md) for what's in it.
 
 **Website:** https://developer1-vd.github.io/TermOS/ (the site's source is in `docs/`).
 
+## Editions and hardware
+
+Every edition is on the [releases page](https://github.com/developer1-vd/TermOS/releases).
+Files over 2 GiB come in parts (`.part0`, `.part1`, ...): download them all and join
+them with `cat`, as the release notes show.
+
+| Edition | File | Runs on |
+| ------- | ---- | ------- |
+| **PC** (x86-64 live ISO) | `TermOS-0.1-x86_64.iso` | PCs and laptops (BIOS or UEFI), and x86-64 boards such as the **Radxa X4** and X2L, which are ordinary UEFI PCs: boot the ISO from USB and install to the board's eMMC or NVMe |
+| **ARM64** (aarch64 live ISO) | `TermOS-0.1-aarch64.iso` | ARM machines with UEFI firmware: Snapdragon X laptops (as far as Fedora's kernel supports them), ARM servers and VMs, and boards that ship UEFI firmware, such as the **Radxa Dragon** and **Radxa Orion O6** (or a ROCK 5 with Radxa's UEFI firmware) |
+| **ARM64 board** (disk image) | `TermOS-0.1-aarch64-board.raw.xz` | Single-board computers that boot from an SD card or disk: **Raspberry Pi 3, 4, 400 and 5** (Pi 5 as far as Fedora supports it), **Radxa ROCK Pi 4** boards and other boards with U-Boot (put U-Boot in the board's SPI flash, as Fedora recommends for Rockchip boards) |
+| **Phone** (Nura + Plasma Mobile) | `TermOS-0.1-phone-<codename>.tar.xz` | The phones in [`phone/devices.txt`](phone/devices.txt), such as the OnePlus 6/6T, Pixel 3a, Fairphone 4, PinePhone, Librem 5, Galaxy S9, Poco F1 and several **Redmi Notes** (4X, 5 Pro, 6 Pro, 7, 8 Pro, 9S/9 Pro, 10 Pro) |
+
+**ARM editions** are the same TermOS (Fedora, KDE Plasma, Nix, Distrobox and the
+TermOS look), minus what only exists for x86-64 PCs: Fedora doesn't build Wine for
+ARM, so Windows apps need an x86-64 PC, and Darling (macOS apps) is x86-64 only.
+FEX runs x86-64 Linux programs on ARM instead.
+
+The **board image** has no installer: write it to an SD card or disk, and the first
+boot asks for your user name and password (KDE's Plasma Setup):
+
+```bash
+xz -d TermOS-0.1-aarch64-board.raw.xz
+```
+
+```bash
+sudo arm-image-installer --image=TermOS-0.1-aarch64-board.raw --media=/dev/sdX --resizefs
+```
+
+(`arm-image-installer` is Fedora's; Fedora Media Writer or `dd` work too, without
+growing the root file system to fill the card.)
+
+**The phone edition** is different underneath: phones need kernels and drivers
+made for each phone, which Fedora doesn't have, so it's built on
+**[Nura](https://nura.eco/)** (formerly postmarketOS) with **KDE Plasma Mobile**,
+plus TermOS's Matrix wallpaper (phone sizes), `termos-fetch` (Matrix and termite
+modes) and the TermOS fortunes. Each phone's file has its image(s) and a
+`FLASHING.txt`; log in as `termos` with the PIN `837667` (TERMOS on a phone keypad)
+and change it afterwards. Flashing erases the phone. Check the phone's page on the
+[Nura wiki](https://wiki.nura.eco/) first. Phones marked "testing" in
+`phone/devices.txt` work, but with rough edges.
+
+Not possible: **iPhones** (Apple locks the bootloader, so no Linux runs on them)
+and the **Samsung Galaxy Z Fold** series (there's no Linux port for them).
+
 ## The three parts
 
 | Part       | What TermOS takes from it                                                   |
@@ -268,6 +313,44 @@ sudo dd if=build/out/TermOS-0.1-x86_64.iso of=/dev/sdX bs=4M status=progress ofl
 You can also build ISOs from GitHub: run the **Build ISO** workflow from the
 Actions tab, and it uploads the ISO as a workflow artifact.
 
+### ARM64
+
+The same script builds the ARM editions. The build runs natively, so run it on an
+ARM64 machine (GitHub's `ubuntu-24.04-arm` runners work):
+
+```bash
+TERMOS_ARCH=aarch64 make iso-container
+```
+
+```bash
+make board
+```
+
+The first writes `build/out/TermOS-0.1-aarch64.iso`; the second (`TERMOS_IMAGE=disk`)
+writes the board image, `build/out/TermOS-0.1-aarch64-board.raw.xz`. The board
+image is a 22 GB disk (write it to a 32 GB card or bigger) with an MBR partition table, the Raspberry Pi firmware and
+U-Boot on its EFI partition, and GRUB.
+
+### Phones
+
+```bash
+make phone DEVICE=oneplus-enchilada
+```
+
+`phone/build-phone.sh` builds one phone's image with Nura's `pmbootstrap`. It
+packages TermOS's files as `termos-phone`, an Alpine package added to Nura's
+package tree. It runs as a normal user with `sudo`, on an ARM64 machine, and
+writes `build/out/TermOS-0.1-phone-<codename>.tar.xz`. The phone list and each
+phone's Nura codename are in `phone/devices.txt`.
+
+### The Build ISO workflow
+
+**Build ISO** (Actions tab) builds the editions you pick (`all`, `pc`, `arm` or
+`phones`). It installs each live ISO with Anaconda and boots it in QEMU (BIOS and
+UEFI on x86-64, UEFI on ARM), and boots the board image as it is. With **publish**,
+it uploads everything to the release only if all of that passed. Phone images are
+built, but can't be boot-tested without the phones.
+
 ## Installing the tools without the ISO
 
 **On Fedora** (or any Linux):
@@ -321,9 +404,11 @@ sudo tests/install-test.sh build/out/lmc-disk-*.img build/itest/disk.img
 The first argument is the live system's root filesystem, such as the disk image
 `livemedia-creator` leaves in `build/out/`. An optional fourth argument, `bios`
 (the default) or `uefi`, picks the firmware to install for and boot with; `uefi`
-needs a machine that boots with UEFI. Run it in a Fedora container or VM; the
-script's header lists the packages it needs. The Build ISO workflow runs it for
-both. It tests Anaconda's install engine, not the web UI's screens.
+needs a machine that boots with UEFI. On an ARM64 machine it tests the ARM ISO the
+same way (UEFI only). Given the board image (`.raw` or `.raw.xz`) instead, it
+checks the image and boots it as it is. Run it in a Fedora container or VM; the
+script's header lists the packages it needs. The Build ISO workflow runs all of
+these. It tests Anaconda's install engine, not the web UI's screens.
 
 ## Repository layout
 
@@ -343,15 +428,17 @@ branding/kde/                  KDE defaults (wallpaper, lock screen)
 branding/installer/            "Install TermOS" icon on the live desktop
 branding/fortune/termos        TermOS fortunes (easter egg)
 branding/make-art.py           generates the wallpaper, splash, GRUB and icon images
-iso/termos.ks.in               kickstart template for the live ISO
-iso/build-iso.sh               ISO builder
+iso/termos.ks.in               kickstart template for the live ISOs and the ARM board image
+iso/build-iso.sh               ISO and board image builder
+phone/build-phone.sh           phone edition builder (Nura + Plasma Mobile)
+phone/devices.txt              the phones the phone edition is built for
 flake.nix                      Nix package, apps and dev shell
 docs/                          the GitHub Pages website
 tests/install-test.sh          install onto a virtual disk and boot it in QEMU
-Makefile                       install, iso, lint and clean targets
+Makefile                       install, iso, board, phone, lint and clean targets
 VERSION                        the TermOS version (0.1)
 CHANGELOG.md                   what changed in each release
-.github/workflows/             CI (lint, Nix build) and the manual ISO build
+.github/workflows/             CI (lint, Nix build) and the manual build of every edition
 ```
 
 ## License

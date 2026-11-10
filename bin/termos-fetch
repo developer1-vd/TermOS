@@ -89,13 +89,19 @@ termite_mode() {
     # Top up with fresh fortunes if we have fewer than we need. Now and then
     # one comes from TermOS's own fortune file, if it's installed.
     local given=${#fortunes[@]}
+    # A short fortune on one line. fortune-mod takes -n 60 (what "short"
+    # means); BSD fortune, as on the phone edition, only has -s.
+    short_fortune() {
+        { fortune -s -n 60 "$@" 2>/dev/null || fortune -s "$@" 2>/dev/null || true; } \
+            | tr -s '\n\t ' ' '
+    }
     while (( ${#fortunes[@]} < ${#labels[@]} )); do
         if command -v fortune >/dev/null; then
             line=""
             if (( RANDOM % 3 == 0 )); then
-                line="$(fortune -s -n 60 termos 2>/dev/null | tr -s '\n\t ' ' ')" || line=""
+                line="$(short_fortune termos)"
             fi
-            [[ -n "$line" ]] || line="$(fortune -s -n 60 | tr -s '\n\t ' ' ')"
+            [[ -n "$line" ]] || line="$(short_fortune)"
             fortunes+=("${line% }")
         elif (( given == 0 )); then
             echo "termos-fetch: install fortune (fortune-mod) or pipe text in" >&2

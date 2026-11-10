@@ -1,8 +1,10 @@
-# TermOS live ISO kickstart (template).
+# TermOS kickstart (template), for the live ISO and the ARM board image.
 #
 # Don't feed this file to livemedia-creator directly: iso/build-iso.sh fills
 # in @@RELEASE@@, and adds a %post section that installs TermOS's own files.
-# The block between the DARLING markers is removed when TERMOS_DARLING=0.
+# Lines between "# @@IF key=value@@" and "# @@ENDIF@@" are kept only when
+# that holds for the build: arch (x86_64, aarch64), image (live: the ISO;
+# disk: the board image) or darling (1, 0).
 
 lang en_US.UTF-8
 keyboard us
@@ -10,17 +12,33 @@ timezone UTC
 network --bootproto=dhcp --device=link --activate
 selinux --enforcing
 firewall --enabled --service=mdns
-services --enabled=NetworkManager,livesys,livesys-late
 xconfig --startxonboot
 rootpw --lock
 shutdown
 
+# @@IF image=live@@
+services --enabled=NetworkManager,livesys,livesys-late
 zerombr
 clearpart --all
 # Room for Fedora 45 KDE plus the extras; the image is sparse, so unused
 # space costs nothing (14 GB was too small for Fedora 45).
 part / --size 20480 --fstype ext4
 bootloader --location=none
+# @@ENDIF@@
+# @@IF image=disk@@
+# A ready-to-boot disk for boards. MBR, which every Raspberry Pi's firmware
+# reads; the firmware, U-Boot and GRUB live on the EFI partition. About 22 GB
+# (a 32 GB card or bigger), like the ISO's 20 GB root; arm-image-installer
+# --resizefs grows / to fill the card or disk.
+services --enabled=NetworkManager,sshd,plasma-setup
+network --hostname=termos
+zerombr
+clearpart --all --initlabel --disklabel=msdos
+part /boot/efi --fstype=efi --size=600
+part /boot --fstype=ext4 --size=1024
+part / --fstype=ext4 --size=20480
+bootloader --timeout=3
+# @@ENDIF@@
 
 # Metalinks, like dnf's defaults: if a mirror is broken or out of date, the
 # download moves on to the next one. (A single redirector URL has no such
@@ -37,6 +55,8 @@ kernel
 kernel-modules
 kernel-modules-extra
 
+-@dial-up
+# @@IF image=live@@
 # Live media + Fedora's installer, Anaconda with its web UI (on KDE it runs
 # in Slitherer, a small Qt web view). It creates the user, so no initial-setup.
 dracut-live
@@ -45,7 +65,15 @@ anaconda-live
 anaconda-webui
 -initial-setup-gui
 -initial-setup-gui-wayland-plasma
--@dial-up
+# @@ENDIF@@
+# @@IF image=disk@@
+# No installer: KDE's Plasma Setup creates the user on first boot. The
+# initramfs must boot on any board, not just the build machine.
+plasma-setup
+dracut-config-generic
+-dracut-config-rescue
+openssh-server
+# @@ENDIF@@
 
 # Ubuntu layer.
 distrobox
@@ -55,7 +83,9 @@ podman
 nix
 nix-daemon
 
-# Windows apps.
+# Windows apps: x86-64 only. Fedora doesn't build Wine for ARM, and the
+# tools around it (Bottles, Winetricks, Protontricks) need it.
+# @@IF arch=x86_64@@
 wine
 wine-mono
 mingw32-wine-gecko
@@ -63,8 +93,10 @@ mingw64-wine-gecko
 wine-dxvk
 winetricks
 bottles
-lutris
 protontricks
+# @@ENDIF@@
+# Games (Lutris also runs native Linux games).
+lutris
 
 # BSD apps (run in a VM).
 qemu-kvm
@@ -74,14 +106,36 @@ libvirt-daemon-config-network
 # Flatpak (Flathub is added in %post).
 flatpak
 
-# Boot loaders: lorax needs these to make the ISO bootable (BIOS + UEFI with
-# Secure Boot), and the installer needs them to install GRUB.
+# Boot loaders: lorax needs these to make the ISO bootable, and the installer
+# needs them to install GRUB.
+efibootmgr
+# @@IF arch=x86_64@@
+# BIOS + UEFI with Secure Boot.
 grub2-pc
 grub2-pc-modules
 grub2-efi-x64
 grub2-efi-x64-cdboot
 shim-x64
-efibootmgr
+# @@ENDIF@@
+# @@IF arch=aarch64@@
+# UEFI (with Secure Boot where the firmware has it): Snapdragon laptops, ARM
+# servers and VMs, and boards whose U-Boot provides UEFI.
+grub2-efi-aa64
+grub2-efi-aa64-cdboot
+shim-aa64
+# x86 and x86-64 Linux programs on ARM.
+fex-emu
+# @@ENDIF@@
+# @@IF image=disk@@
+# Board firmware: Raspberry Pi firmware and device tree overlays (they go on
+# the EFI partition), and U-Boot for the Pi and other boards.
+bcm283x-firmware
+bcm283x-overlays
+bcm2711-firmware
+bcm2712-firmware
+uboot-images-armv8
+uboot-tools
+# @@ENDIF@@
 
 # GRUB theme: grub2-mkfont makes its fonts from DejaVu Sans Mono.
 grub2-tools-extra
@@ -108,8 +162,41 @@ htop
 %end
 
 %post
+# @@IF image=live@@
 # Live session: KDE Plasma, auto-login as liveuser (handled by livesys-scripts).
 sed -i 's/^livesys_session=.*/livesys_session="kde"/' /etc/sysconfig/livesys
+# @@ENDIF@@
+# @@IF image=disk@@
+# Raspberry Pi: the firmware's config.txt starts rpi-u-boot.bin, which then
+# boots GRUB from the EFI partition like UEFI firmware would.
+if [ -f /usr/share/uboot/rpi_arm64/u-boot.bin ]; then
+    cp /usr/share/uboot/rpi_arm64/u-boot.bin /boot/efi/rpi-u-boot.bin
+else
+    echo "TermOS: WARNING: no Raspberry Pi U-Boot; the image won't boot on a Pi"
+fi
+# The image is built in a container without udev, where Anaconda can't read
+# the new partitions' UUIDs, so it names them by its own device names
+# (/dev/mapper/<image name>N), which won't exist on the board: in fstab, and
+# as root= in the boot entries and kernel command line. Use the UUIDs.
+for dev in $(grep -oE '^/dev/mapper/[^[:space:]]+' /etc/fstab | sort -u); do
+    uuid="$(blkid -o value -s UUID "$dev")"
+    if [ -z "$uuid" ]; then
+        echo "TermOS: ERROR: no UUID for $dev"
+        continue
+    fi
+    sed -i "s|^${dev}[[:space:]]|UUID=$uuid |" /etc/fstab
+    for f in /boot/loader/entries/*.conf /etc/kernel/cmdline /etc/default/grub /boot/grub2/grubenv; do
+        [ -f "$f" ] && sed -i -E "s#${dev}([^0-9]|\$)#UUID=${uuid}\1#g" "$f"
+    done
+done
+if grep -rqs '/dev/mapper/' /etc/fstab /boot/loader/entries /etc/kernel/cmdline; then
+    echo "TermOS: ERROR: build-time device names left in fstab or the boot entries"
+fi
+# The boot menu was made on the build machine, where os-prober found that
+# machine's own systems. A board has none: turn os-prober off and remake it.
+echo 'GRUB_DISABLE_OS_PROBER=true' >> /etc/default/grub
+grub2-mkconfig -o /boot/grub2/grub.cfg || echo "TermOS: ERROR: couldn't remake the boot menu"
+# @@ENDIF@@
 
 # Nix daemon, if the nix-daemon package was available for this release.
 systemctl enable nix-daemon.socket 2>/dev/null || true
@@ -132,6 +219,7 @@ flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.f
     || echo "TermOS: couldn't add Flathub; add it later with flatpak remote-add"
 
 # Installer: call Anaconda's launcher "Install TermOS", with the TermOS logo.
+# (Only on the live ISO; the board image has no installer.)
 if [ -f /usr/share/applications/liveinst.desktop ]; then
     sed -i -e 's/^Name=.*/Name=Install TermOS/' -e '/^Name\[/d' \
         -e 's/^Icon=.*/Icon=termos-logo/' /usr/share/applications/liveinst.desktop
@@ -202,7 +290,7 @@ systemctl enable termos-os-release.service termos-os-release.path 2>/dev/null ||
 )
 %end
 
-# @@DARLING_BEGIN@@
+# @@IF darling=1@@
 %post
 # Darling (macOS apps) isn't in Fedora, so it comes from the medzik/darling
 # COPR. That package is community-built, so a failure here only skips Darling
@@ -224,4 +312,15 @@ else
     echo "TermOS: WARNING: Darling could not be installed; macOS apps will need a Mac over SSH"
 fi
 %end
-# @@DARLING_END@@
+# @@ENDIF@@
+
+# @@IF image=disk@@
+%post
+# Label every file for SELinux. The image is built where SELinux is off, so
+# the installer's own labelling did nothing; unlabelled files would stop the
+# board from booting. (Last %post, so it covers every file.)
+setfiles -F -e /proc -e /sys -e /dev -e /boot/efi \
+    /etc/selinux/targeted/contexts/files/file_contexts / \
+    || echo "TermOS: ERROR: couldn't label the image for SELinux"
+%end
+# @@ENDIF@@

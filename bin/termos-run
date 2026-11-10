@@ -131,6 +131,9 @@ run_macos() {
 # ---- Windows / Ubuntu -------------------------------------------------------
 
 run_windows() {
+    if ! command -v wine >/dev/null && [[ "$(uname -m)" != x86_64 ]]; then
+        die "Windows apps need Wine, which Fedora only builds for x86-64 PCs; on $(uname -m), run them on an x86-64 PC"
+    fi
     need wine "sudo dnf install wine"
     export WINEPREFIX="${WINEPREFIX:-$HOME/.local/share/termos/wine}"
     mkdir -p "$WINEPREFIX"
