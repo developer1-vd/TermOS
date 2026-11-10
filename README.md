@@ -197,24 +197,16 @@ the desktop.
 
 ## The installer
 
-TermOS installs with [Calamares](https://calamares.io/) instead of Fedora's
-Anaconda. Calamares walks you through language, keyboard, disk partitioning
-(including encryption) and creating your user, then copies the live system to
-disk. While it installs, it shows a TermOS slideshow.
+TermOS installs with Fedora's own installer, Anaconda, using its web UI (on KDE
+it runs in Slitherer, a small Qt web view). Double-click **Install TermOS** on the
+live desktop. It walks you through language, disks (including encryption) and
+creating your user, then copies the live system to disk.
 
-The setup lives in `branding/calamares/`:
-
-```
-settings.conf          the install steps (based on Fedora's own Calamares setup)
-modules/welcome.conf   requirements check: 25 GB disk, 2 GB RAM
-modules/packages.conf  removes live-only packages after installing
-modules/partition.conf disk layout: separate ext4 /boot + btrfs root; GPT on UEFI, MBR on BIOS
-branding/termos/       TermOS logo, colours and slideshow
-```
-
-Anything not set there uses the defaults from Fedora's Calamares package. The
-installed system keeps the TermOS boot splash, wallpaper and preinstalled apps,
-and the temporary live user isn't copied to it.
+Anaconda takes care of the details that make an install boot on any machine: the
+disk layout (with a BIOS boot partition on BIOS machines and an EFI partition on
+UEFI ones), boot menu entries that match the installed disk, and SELinux labels.
+The installed system keeps the TermOS boot splash, GRUB theme, wallpaper, name and
+preinstalled apps, and the temporary live user isn't copied to it.
 
 Preinstalled on the ISO:
 
@@ -229,7 +221,7 @@ Preinstalled on the ISO:
 | Everything else | Flatpak with Flathub                                               |
 | TermOS          | `termos-fetch`, `termos-run`, fastfetch (Matrix logo) and fortune  |
 | Look            | The TermOS wallpaper, boot splash and GRUB theme                   |
-| Installer       | Calamares, with TermOS branding                                    |
+| Installer       | Anaconda (Fedora's installer) with its web UI                      |
 
 Darling is built by the community, not Fedora. If it can't be installed when the
 ISO is built, the build carries on without it and prints a warning. To leave it
@@ -317,19 +309,21 @@ Nix package on every push.
 
 ### Install test
 
-`tests/install-test.sh` installs TermOS onto a virtual disk the way the installer
-does, then boots it in QEMU. It uses TermOS's real partition layout, btrfs
-subvolumes, boot-entry fix and SELinux relabel, installs GRUB for BIOS, and passes
-when the system reaches a login prompt with no failed services:
+`tests/install-test.sh` installs TermOS onto a virtual disk with its installer,
+Anaconda, running unattended from a kickstart (automatic partitioning, like the web
+UI's "use the entire disk"). Then it boots the disk in QEMU and passes when the
+system reaches a login prompt with no failed services:
 
 ```bash
 sudo tests/install-test.sh build/out/lmc-disk-*.img build/itest/disk.img
 ```
 
 The first argument is the live system's root filesystem, such as the disk image
-`livemedia-creator` leaves in `build/out/`. The test can't drive the Calamares
-installer itself (it has no unattended mode), so it covers the disk layout, GRUB and
-booting, not Calamares' screens. It doesn't test UEFI installs yet.
+`livemedia-creator` leaves in `build/out/`. An optional fourth argument, `bios`
+(the default) or `uefi`, picks the firmware to install for and boot with; `uefi`
+needs a machine that boots with UEFI. Run it in a Fedora container or VM; the
+script's header lists the packages it needs. The Build ISO workflow runs it for
+both. It tests Anaconda's install engine, not the web UI's screens.
 
 ## Repository layout
 
@@ -346,9 +340,9 @@ branding/grub/                 GRUB theme, its install script and a GRUB easter 
 branding/icons/                TermOS logo icon, installed in place of Fedora's logo
 branding/os-release/           keeps /etc/os-release branded as TermOS (Fedora's ID kept)
 branding/kde/                  KDE defaults (wallpaper, lock screen)
-branding/calamares/            Calamares installer settings and branding
+branding/installer/            "Install TermOS" icon on the live desktop
 branding/fortune/termos        TermOS fortunes (easter egg)
-branding/make-art.py           generates the wallpaper, splash, GRUB and installer images
+branding/make-art.py           generates the wallpaper, splash, GRUB and icon images
 iso/termos.ks.in               kickstart template for the live ISO
 iso/build-iso.sh               ISO builder
 flake.nix                      Nix package, apps and dev shell

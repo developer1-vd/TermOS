@@ -101,19 +101,10 @@ write_ks() {
     embed_tree "$repo/branding/grub/termos"             /usr/share/termos/grub/termos
     embed "$repo/branding/grub/install-grub-theme.sh" \
         /usr/libexec/termos/install-grub-theme.sh 0755
-    # Calamares installer: TermOS settings, module configs and branding.
-    embed "$repo/branding/calamares/settings.conf"  /etc/calamares/settings.conf 0644
-    embed_tree "$repo/branding/calamares/modules"       /etc/calamares/modules
-    embed_tree "$repo/branding/calamares/branding/termos" /usr/share/calamares/branding/termos
-    embed "$repo/branding/calamares/termos-install.desktop" \
-        /usr/share/applications/termos-install.desktop 0644
-    embed "$repo/branding/calamares/termos-fix-boot-entries" \
-        /usr/libexec/termos/termos-fix-boot-entries 0755
-    embed "$repo/branding/calamares/termos-relabel" \
-        /usr/libexec/termos/termos-relabel 0755
-    embed "$repo/branding/calamares/termos-live-desktop.sh" \
+    # Live session: an "Install TermOS" icon on the desktop.
+    embed "$repo/branding/installer/termos-live-desktop.sh" \
         /usr/libexec/termos/termos-live-desktop.sh 0755
-    embed "$repo/branding/calamares/termos-live-desktop.desktop" \
+    embed "$repo/branding/installer/termos-live-desktop.desktop" \
         /etc/xdg/autostart/termos-live-desktop.desktop 0644
     echo "%end" >> "$ks"
     ks="$saved"

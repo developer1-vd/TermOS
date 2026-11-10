@@ -8,7 +8,6 @@ Writes:
                                                      (landscape + phone portrait)
     branding/wallpaper/contents/screenshot.png       wallpaper preview
     branding/plymouth/termos/*.png                   Plymouth boot splash images
-    branding/calamares/branding/termos/*.png         installer (Calamares) images
     branding/grub/termos/*.png                       GRUB boot menu theme images
     branding/icons/hicolor/<size>/apps/termos-logo.png  TermOS logo icon (all sizes)
 
@@ -210,24 +209,6 @@ def make_icons(out, font_path):
         master.resize((s, s), Image.LANCZOS).save(os.path.join(d, "termos-logo.png"), optimize=True)
 
 
-def make_calamares(out, font_path):
-    """Installer branding: icon, welcome logo and slideshow background."""
-    os.makedirs(out, exist_ok=True)
-    # Square app icon: a glowing ">_" prompt on a dark rounded tile.
-    size = 256
-    tile = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    ImageDraw.Draw(tile).rounded_rectangle(
-        [8, 8, size - 9, size - 9], radius=44, fill=BLACK + (255,),
-        outline=MID + (255,), width=6)
-    prompt = wordmark(110, font_path, ">_")
-    tile.alpha_composite(prompt, ((size - prompt.width) // 2, (size - prompt.height) // 2))
-    tile.save(os.path.join(out, "logo.png"))
-    wordmark(120, font_path).save(os.path.join(out, "welcome.png"))
-    # Slideshow background: rain only, darkened so text on top stays readable.
-    bg = make_wallpaper(1280, 720, font_path, with_mark=False)
-    bg = Image.blend(bg, Image.new("RGB", bg.size, BLACK), 0.35)
-    bg.save(os.path.join(out, "slide-bg.png"), optimize=True)
-
 
 def make_grub(out, font_path):
     """GRUB theme images: background, logo and the selected-item bar."""
@@ -262,10 +243,6 @@ def main():
     shot = os.path.join(HERE, "wallpaper", "contents", "screenshot.png")
     make_wallpaper(1920, 1080, font_path).resize((400, 225), Image.LANCZOS).save(shot)
     print("wrote", os.path.relpath(shot))
-
-    cal = os.path.join(HERE, "calamares", "branding", "termos")
-    make_calamares(cal, font_path)
-    print("wrote", os.path.relpath(cal) + "/*.png")
 
     icons = os.path.join(HERE, "icons", "hicolor")
     make_icons(icons, font_path)

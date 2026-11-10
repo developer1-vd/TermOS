@@ -37,12 +37,12 @@ kernel
 kernel-modules
 kernel-modules-extra
 
-# Live media + the Calamares installer (instead of Fedora's Anaconda).
+# Live media + Fedora's installer, Anaconda with its web UI (on KDE it runs
+# in Slitherer, a small Qt web view). It creates the user, so no initial-setup.
 dracut-live
 livesys-scripts
-calamares
--anaconda-live
--anaconda-webui
+anaconda-live
+anaconda-webui
 -initial-setup-gui
 -initial-setup-gui-wayland-plasma
 -@dial-up
@@ -75,7 +75,7 @@ libvirt-daemon-config-network
 flatpak
 
 # Boot loaders: lorax needs these to make the ISO bootable (BIOS + UEFI with
-# Secure Boot), and Calamares needs them to install GRUB.
+# Secure Boot), and the installer needs them to install GRUB.
 grub2-pc
 grub2-pc-modules
 grub2-efi-x64
@@ -131,17 +131,17 @@ systemctl enable libvirtd.socket 2>/dev/null || true
 flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
     || echo "TermOS: couldn't add Flathub; add it later with flatpak remote-add"
 
-# Installer: hide Fedora's generic Calamares launcher in favour of
-# "Install TermOS" (the live-only package is removed on install anyway).
-if [ -f /usr/share/applications/calamares.desktop ]; then
-    echo "NoDisplay=true" >> /usr/share/applications/calamares.desktop
+# Installer: call Anaconda's launcher "Install TermOS", with the TermOS logo.
+if [ -f /usr/share/applications/liveinst.desktop ]; then
+    sed -i -e 's/^Name=.*/Name=Install TermOS/' -e '/^Name\[/d' \
+        -e 's/^Icon=.*/Icon=termos-logo/' /usr/share/applications/liveinst.desktop
 fi
 
 # TermOS boot splash. The initramfs is rebuilt afterwards (by lorax for the
 # live ISO, and by the installer for installed systems), so it picks this up.
 plymouth-set-default-theme termos || echo "TermOS: couldn't set the Plymouth theme"
 
-# TermOS GRUB theme. Calamares regenerates grub.cfg when it installs the
+# TermOS GRUB theme. The installer regenerates grub.cfg when it installs the
 # bootloader, so this only needs to set /etc/default/grub and copy the theme.
 /usr/libexec/termos/install-grub-theme.sh /usr/share/termos/grub/termos \
     || echo "TermOS: couldn't install the GRUB theme"

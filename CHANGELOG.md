@@ -12,7 +12,8 @@ TermOS v0.1 is based on **Fedora 45**.
 - **KDE Plasma** desktop, with Wine, Winetricks, Bottles, Lutris,
   Protontricks, Darling, QEMU/KVM, virt-manager, Flatpak and Flathub
   preinstalled.
-- **Calamares installer** with TermOS branding and an install slideshow.
+- **Anaconda installer** (Fedora's own) with its web UI, as **Install TermOS** on
+  the live desktop.
 - **The look:** Matrix-rain wallpaper (desktop and phone sizes), Plymouth boot
   splash and GRUB theme, all with the TermOS logo.
 - **`termos-fetch`:** the Matrix logo with real stats, or a termite whose stats
