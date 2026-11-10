@@ -231,6 +231,9 @@ build_host() {
     rm -rf "$build/out"
     local common=(--ks "$ks" --no-virt --project TermOS --releasever "$release"
                   --resultdir "$build/out" --logfile "$build/livemedia.log")
+    # Mac boot support (an HFS+ image) only exists for x86 Macs; on aarch64,
+    # livemedia-creator stops without its tools unless told to skip it.
+    [[ "$arch" == aarch64 ]] && common+=(--nomacboot)
     if [[ "$image" == live ]]; then
         prepare_templates
         livemedia-creator "${common[@]}" \

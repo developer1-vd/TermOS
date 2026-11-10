@@ -67,7 +67,9 @@ if [[ ! -d "$work/pmbootstrap/.git" ]]; then
 fi
 if [[ ! -d "$work/pmaports/.git" ]]; then
     step "get pmaports ($channel)"
-    git clone -q --depth 1 --branch "$channel" "$pmaports_git" "$work/pmaports"
+    # Every branch's tip, not just the channel's: pmbootstrap reads the list
+    # of channels from origin/main.
+    git clone -q --depth 1 --no-single-branch --branch "$channel" "$pmaports_git" "$work/pmaports"
 fi
 deviceinfo="$(find "$work/pmaports/device" -path "*/device-$device/deviceinfo" | head -1)"
 [[ -f "$deviceinfo" ]] || die "Nura $channel has no device $device"
