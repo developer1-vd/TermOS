@@ -191,6 +191,10 @@ done
 if grep -rqs '/dev/mapper/' /etc/fstab /boot/loader/entries /etc/kernel/cmdline; then
     echo "TermOS: ERROR: build-time device names left in fstab or the boot entries"
 fi
+# The boot menu was made on the build machine, where os-prober found that
+# machine's own systems. A board has none: turn os-prober off and remake it.
+echo 'GRUB_DISABLE_OS_PROBER=true' >> /etc/default/grub
+grub2-mkconfig -o /boot/grub2/grub.cfg || echo "TermOS: ERROR: couldn't remake the boot menu"
 # @@ENDIF@@
 
 # Nix daemon, if the nix-daemon package was available for this release.

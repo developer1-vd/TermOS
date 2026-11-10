@@ -50,6 +50,7 @@ src="$(realpath "$1")"
 disk="$(realpath -m "$2")"
 timeout="${3:-1800}"
 arch="$(uname -m)"
+slow_boot_args=""
 
 die() { echo "install-test: $*" >&2; exit 1; }
 step() { echo "install-test: == $*"; }
@@ -68,6 +69,10 @@ case "$arch" in
         ;;
     aarch64)
         qemu_bin=qemu-system-aarch64 console=ttyAMA0
+        # Without KVM (GitHub's ARM runners) QEMU emulates the CPU, and udev
+        # can take longer than systemd's 45 s to show the disks; that's the
+        # emulation, not the system, so the test gives it more time.
+        [[ -w /dev/kvm ]] || slow_boot_args="systemd.default_device_timeout_sec=600"
         fw_code=/usr/share/edk2/aarch64/QEMU_EFI-pflash.raw
         fw_vars=/usr/share/edk2/aarch64/vars-template-pflash.raw
         firmware="${4:-uefi}"
@@ -125,7 +130,7 @@ liveimg --url=file://$src
 zerombr
 clearpart --all --initlabel
 autopart
-bootloader --append="console=tty0 console=$console,115200 systemd.show_status=1"
+bootloader --append="console=tty0 console=$console,115200 systemd.show_status=1${slow_boot_args:+ $slow_boot_args}"
 rootpw --lock
 user --name=tester --password=termos --plaintext --groups=wheel
 shutdown
@@ -270,15 +275,19 @@ board_inspect() {
         die "fstab names build-time devices; the board couldn't mount them"
     fi
     umount "$work/top"
-    # Nor may the boot entries (root=) on the /boot partition.
+    # Nor may the boot entries (root=) on the /boot partition. (On this
+    # test copy only, give an emulated boot more time; see slow_boot_args.)
     for part in "$loop"p*; do
-        mount -o ro "$part" "$work/top" 2>/dev/null || continue
+        mount "$part" "$work/top" 2>/dev/null || continue
         if [[ -d "$work/top/loader/entries" ]]; then
             echo "install-test: boot entries:"
             grep -h -E '^(title|options)' "$work"/top/loader/entries/*.conf | sed 's/^/  /'
             if grep -qs '/dev/mapper/\|/dev/loop' "$work"/top/loader/entries/*.conf; then
                 umount "$work/top"
                 die "the boot entries name build-time devices; the board couldn't find its root"
+            fi
+            if [[ -n $slow_boot_args ]]; then
+                sed -i "s|^options .*|& $slow_boot_args|" "$work"/top/loader/entries/*.conf
             fi
         fi
         umount "$work/top"
@@ -340,11 +349,12 @@ qemu=$!
 result=timeout
 for (( i = 0; i < timeout; i += 5 )); do
     sleep 5
-    # GRUB errors fail the test, except about its serial terminal: the test's
-    # console=ttyS0/ttyAMA0 makes Anaconda configure one, which EFI GRUB on
-    # ARM doesn't have (it carries on booting regardless).
+    # GRUB errors fail the test, except about its serial terminal (the
+    # test's console=ttyS0/ttyAMA0 makes Anaconda configure one, which EFI
+    # GRUB on ARM doesn't have) and the boot partition's GPT UUID (an MBR
+    # disk like the board image has none). GRUB carries on after both.
     if grep -aE "Kernel panic|not found\.|you need to load the kernel|Entering emergency mode|You are in emergency mode|^error: " "$serial" 2>/dev/null \
-            | grep -aqvE "terminal \`serial' isn't found|serial port \`auto' isn't found"; then
+            | grep -aqvE "terminal \`serial' isn't found|serial port \`auto' isn't found|unable to determine partition UUID of boot device"; then
         result=fail; break
     fi
     if grep -aq "login:" "$serial" 2>/dev/null; then
