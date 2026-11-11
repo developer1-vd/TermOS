@@ -18,7 +18,7 @@ them with `cat`, as the release notes show.
 | Edition | File | Runs on |
 | ------- | ---- | ------- |
 | **PC** (x86-64 live ISO) | `TermOS-0.1-x86_64.iso` | PCs and laptops (BIOS or UEFI), and x86-64 boards such as the **Radxa X4** and X2L, which are ordinary UEFI PCs: boot the ISO from USB and install to the board's eMMC or NVMe |
-| **ARM64** (aarch64 live ISO) | `TermOS-0.1-aarch64.iso` | ARM machines with UEFI firmware: Snapdragon X laptops (as far as Fedora's kernel supports them), ARM servers and VMs, and boards that ship UEFI firmware, such as the **Radxa Dragon** and **Radxa Orion O6** (or a ROCK 5 with Radxa's UEFI firmware) |
+| **ARM64** (aarch64 live ISO) | `TermOS-0.1-aarch64.iso` | ARM machines with UEFI firmware: Snapdragon X laptops (as far as Fedora's kernel supports them), ARM servers and VMs, and boards that ship UEFI firmware, such as the **Radxa Dragon** series (see below) and **Radxa Orion O6** (or a ROCK 5 with Radxa's UEFI firmware) |
 | **ARM64 board** (disk image) | `TermOS-0.1-aarch64-board.raw.xz` | Single-board computers that boot from an SD card or disk: **Raspberry Pi 3, 4, 400 and 5** (Pi 5 as far as Fedora supports it), **Radxa ROCK Pi 4** boards and other boards with U-Boot (put U-Boot in the board's SPI flash, as Fedora recommends for Rockchip boards) |
 | **Phone** (Nura + Plasma Mobile) | `TermOS-0.1-phone-<codename>.tar.xz` | The phones in [`phone/devices.txt`](phone/devices.txt), such as the OnePlus 6/6T, Pixel 3a, Fairphone 4, PinePhone, Librem 5, Galaxy S9, Poco F1 and several **Redmi Notes** (4X, 5 Pro, 6 Pro, 7, 8 Pro, 9S/9 Pro, 10 Pro) |
 
@@ -40,6 +40,36 @@ sudo arm-image-installer --image=TermOS-0.1-aarch64-board.raw --media=/dev/sdX -
 
 (`arm-image-installer` is Fedora's; Fedora Media Writer or `dd` work too, without
 growing the root file system to fill the card.)
+
+### Radxa Dragon series
+
+The Dragon boards are Qualcomm boards with UEFI firmware (Radxa's "BIOS") on their
+own flash chip, which passes the board's device tree to the OS. TermOS boots on them
+like on a PC:
+
+| Board | Chip | Status |
+| ----- | ---- | ------ |
+| **Dragon Q6A** | Qualcomm QCS6490 | Supported: Fedora's kernel has this board's device tree (`qcs6490-radxa-dragon-q6a`) |
+| **Dragon Q8B** | Snapdragon 8cx Gen 3 (SC8280XP) | Experimental: Fedora's kernel supports the chip (it runs the ThinkPad X13s), but has no device tree for this board, so it relies on the one from Radxa's firmware |
+
+1. Update the board's firmware to Radxa's latest first (see Radxa's
+   [Dragon docs](https://docs.radxa.com/en/dragon); newer firmware is what generic
+   distributions need).
+2. Write the **ARM64 ISO** to a USB stick, pick it in the firmware's Boot Manager,
+   and choose **Start TermOS 0.1 on a Qualcomm board**. That entry adds
+   `clk_ignore_unused pd_ignore_unused`, which Qualcomm boards need, and the
+   installer keeps them on the installed system. Install to the board's NVMe, UFS
+   or eMMC.
+3. Or write the **board image** to a microSD card, UFS module or NVMe drive. Its boot
+   entries don't have those two arguments; if it stops during boot, press `e` in the
+   GRUB menu, add them to the `linux` line, and once booted make them permanent:
+
+```bash
+sudo grubby --update-kernel=ALL --args="clk_ignore_unused pd_ignore_unused"
+```
+
+These boards haven't been tested on hardware with TermOS yet; the ISO and board
+image are tested in an emulated ARM machine.
 
 **The phone edition** is different underneath: phones need kernels and drivers
 made for each phone, which Fedora doesn't have, so it's built on

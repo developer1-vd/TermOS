@@ -192,6 +192,27 @@ CFG
         sed -i "s/@VERSION@/$version/g" "$cfg"
     done
     rm -f "$theme_block"
+    # ARM: a second entry for Qualcomm boards (Radxa Dragon Q6A/Q8B,
+    # Snapdragon laptops), which need the kernel to leave unused clocks and
+    # power domains alone. Anaconda keeps these two arguments on the system
+    # it installs (they're in its preserved_arguments).
+    if [[ "$arch" == aarch64 ]]; then
+        local qcom_entry="$build/qcom-entry.cfg" arm_cfg="$dest/live/config_files/aarch64/grub2-efi.cfg"
+        cat > "$qcom_entry" <<'CFG'
+menuentry 'Start @PRODUCT@ @VERSION@ on a Qualcomm board (Radxa Dragon, Snapdragon laptops)' --class red --class gnu-linux --class gnu --class os {
+	linux @KERNELPATH@ @ROOT@ @EXTRA@ rd.live.image clk_ignore_unused pd_ignore_unused quiet rhgb
+	initrd @INITRDPATH@
+}
+CFG
+        sed -i "s/@VERSION@/$version/g" "$qcom_entry"
+        grep -q "^menuentry 'Test this media" "$arm_cfg" || die "unexpected lorax template: $arm_cfg"
+        # Insert it before the "Test this media" entry, after the main one.
+        awk -v f="$qcom_entry" '
+            /^menuentry .Test this media/ && !done { while ((getline l < f) > 0) print l; done = 1 }
+            { print }
+        ' "$arm_cfg" > "$arm_cfg.new" && mv "$arm_cfg.new" "$arm_cfg"
+        rm -f "$qcom_entry"
+    fi
     # Put the theme on the ISO at /boot/grub2/themes/termos, where the menus
     # look for it (they search for the ISO by label first). The ${...} are
     # lorax template variables, so they stay unexpanded.
