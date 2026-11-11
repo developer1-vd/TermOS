@@ -23,7 +23,8 @@ WALLDIR  = $(DESTDIR)$(PREFIX)/share/wallpapers/TermOS
 # fortune only looks in its own directory, whatever PREFIX is.
 FORTUNEDIR ?= $(DESTDIR)/usr/share/games/fortune
 
-SCRIPTS  = bin/termos-fetch bin/termos-run iso/build-iso.sh \
+SCRIPTS  = bin/termos-fetch bin/termos-run bin/termos-desktop iso/build-iso.sh \
+           iso/flash-board.sh tests/desktop-test.sh \
            branding/grub/install-grub-theme.sh branding/grub/42_termos \
            branding/installer/termos-live-desktop.sh branding/icons/install-icons.sh \
            branding/os-release/termos-os-release \
@@ -37,6 +38,8 @@ all:
 install:
 	install -Dm755 bin/termos-fetch               $(BINDIR)/termos-fetch
 	install -Dm755 bin/termos-run                 $(BINDIR)/termos-run
+	install -Dm755 bin/termos-desktop             $(BINDIR)/termos-desktop
+	install -Dm644 branding/desktops/50-termos-wallpaper $(SHAREDIR)/desktops/50-termos-wallpaper
 	install -Dm644 VERSION                        $(SHAREDIR)/VERSION
 	install -Dm644 branding/logo-matrix.txt       $(SHAREDIR)/logo-matrix.txt
 	install -Dm644 branding/logo-termite.txt      $(SHAREDIR)/logo-termite.txt
@@ -73,7 +76,7 @@ art:
 	python3 branding/make-art.py
 
 uninstall:
-	rm -f  $(BINDIR)/termos-fetch $(BINDIR)/termos-run
+	rm -f  $(BINDIR)/termos-fetch $(BINDIR)/termos-run $(BINDIR)/termos-desktop
 	rm -rf $(SHAREDIR) $(WALLDIR)
 	rm -f  $(FORTUNEDIR)/termos $(FORTUNEDIR)/termos.dat
 

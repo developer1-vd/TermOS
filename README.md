@@ -19,7 +19,7 @@ them with `cat`, as the release notes show.
 | ------- | ---- | ------- |
 | **PC** (x86-64 live ISO) | `TermOS-0.1-x86_64.iso` | PCs and laptops (BIOS or UEFI), and x86-64 boards such as the **Radxa X4** and X2L, which are ordinary UEFI PCs: boot the ISO from USB and install to the board's eMMC or NVMe |
 | **ARM64** (aarch64 live ISO) | `TermOS-0.1-aarch64.iso` | ARM machines with UEFI firmware: Snapdragon X laptops (as far as Fedora's kernel supports them), ARM servers and VMs, and boards that ship UEFI firmware, such as the **Radxa Dragon** series (see below) and **Radxa Orion O6** (or a ROCK 5 with Radxa's UEFI firmware) |
-| **ARM64 board** (disk image) | `TermOS-0.1-aarch64-board.raw.xz` | Single-board computers that boot from an SD card or disk: **Raspberry Pi 3, 4, 400 and 5** (Pi 5 as far as Fedora supports it), **Radxa ROCK Pi 4** boards and other boards with U-Boot (put U-Boot in the board's SPI flash, as Fedora recommends for Rockchip boards) |
+| **ARM64 board** (disk image) | `TermOS-0.1-aarch64-board.raw.xz` | Single-board computers that boot from an SD card or disk: **Raspberry Pi 3, 4, 400 and 5** (Pi 5 as far as Fedora supports it), **Orange Pi** boards (see below), **Radxa ROCK Pi 4** boards and other boards with U-Boot (put U-Boot in the board's SPI flash, as Fedora recommends for Rockchip boards) |
 | **Phone** (Nura + Plasma Mobile) | `TermOS-0.1-phone-<codename>.tar.xz` | The phones in [`phone/devices.txt`](phone/devices.txt), such as the OnePlus 6/6T, Pixel 3a, Fairphone 4, PinePhone, Librem 5, Galaxy S9, Poco F1 and several **Redmi Notes** (4X, 5 Pro, 6 Pro, 7, 8 Pro, 9S/9 Pro, 10 Pro) |
 
 **ARM editions** are the same TermOS (Fedora, KDE Plasma, Nix, Distrobox and the
@@ -40,6 +40,47 @@ sudo arm-image-installer --image=TermOS-0.1-aarch64-board.raw --media=/dev/sdX -
 
 (`arm-image-installer` is Fedora's; Fedora Media Writer or `dd` work too, without
 growing the root file system to fill the card.)
+
+On any Linux, `iso/flash-board.sh` from this repository does the same, straight
+from the `.raw.xz`: it writes the image, and with `--grow` makes the root file
+system fill the card:
+
+```bash
+sudo iso/flash-board.sh --grow TermOS-0.1-aarch64-board.raw.xz /dev/sdX
+```
+
+### Orange Pi boards
+
+A Raspberry Pi finds its U-Boot inside the image. An Orange Pi loads U-Boot from a
+fixed place at the start of the card, so it has to be put there when the card is
+written. `flash-board.sh` does that when you name the board; the U-Boot comes from
+the image itself (Fedora's build for that board):
+
+```bash
+sudo iso/flash-board.sh --grow TermOS-0.1-aarch64-board.raw.xz /dev/sdX orangepi_zero3
+```
+
+| Boards | Name for `flash-board.sh` | Status |
+| ------ | ------------------------- | ------ |
+| Orange Pi Zero 2, Zero 2W, Zero 3 (Allwinner H616/H618) | `orangepi_zero2`, `orangepi_zero2w`, `orangepi_zero3` | Supported from the SD card |
+| Orange Pi 3, Lite 2, One Plus (H6) | `orangepi_3`, `orangepi_lite2`, `orangepi_one_plus` | Supported from the SD card |
+| Orange Pi PC 2, Prime, Zero Plus, Zero Plus 2 (H5), Win (A64) | `orangepi_pc2`, `orangepi_prime`, `orangepi_zero_plus`, `orangepi_zero_plus2`, `orangepi_win` | Supported from the SD card |
+| Orange Pi R1 Plus, R1 Plus LTS, RK3399 (Rockchip) | none | U-Boot must be in the board's SPI flash (Fedora ships `u-boot-rockchip-spi.bin` for the R1 Plus boards); then write the image without a board name |
+| Orange Pi 5, 5 Plus, 5 Max, 3B (RK3588/RK3566) | none | Experimental: Fedora ships no U-Boot for them. With a UEFI-capable U-Boot or EDK2 in SPI flash, try the board image or the ARM64 ISO |
+
+"Supported" means Fedora 45 has both the U-Boot and the kernel device tree for the
+board. The small boards (512 MB to 1 GB of memory) are slow with KDE Plasma:
+`termos-desktop install xfce` or `lxqt` gives them a lighter desktop.
+
+Why Rockchip boards are different: their U-Boot is 9 MB and would overwrite the
+start of the image's first partition. `flash-board.sh` refuses to write it and
+leaves the image intact, rather than produce a card that can't boot.
+`sudo iso/flash-board.sh --list IMAGE` shows every board the image has U-Boot for.
+
+The Build ISO workflow checks all of this on every board image: each Allwinner
+U-Boot fits before the first partition, a too-big one is refused, and with an
+Orange Pi U-Boot written the partitions are byte-for-byte unchanged and the image
+still boots. None of it has been tested on an Orange Pi itself yet.
 
 ### Radxa Dragon series
 
@@ -100,6 +141,40 @@ sudo dnf install htop                    # Fedora (system)
 nix profile install nixpkgs#ripgrep      # Nix (per-user, reproducible)
 distrobox enter ubuntu -- sudo apt install cowsay   # Ubuntu (container)
 ```
+
+## Choosing your desktop
+
+TermOS comes with **KDE Plasma**. `termos-desktop` adds any of Fedora's other
+desktops next to it:
+
+```bash
+termos-desktop
+```
+
+```bash
+termos-desktop install gnome
+```
+
+| Name | Desktop |
+| ---- | ------- |
+| `kde` | KDE Plasma (the default) |
+| `gnome` | GNOME |
+| `xfce` | Xfce: light and classic |
+| `cinnamon` | Cinnamon: traditional, from Linux Mint |
+| `mate` | MATE: the classic GNOME 2 desktop |
+| `lxqt`, `lxde` | LXQt and LXDE: very light |
+| `budgie` | Budgie |
+| `cosmic` | COSMIC: System76's new desktop |
+| `sway`, `i3` | Tiling, keyboard-driven (Wayland and X11) |
+
+Installing a desktop removes nothing and leaves your login screen as it is. To use
+the new desktop, log out and pick it from the session menu on the login screen;
+it remembers your choice, and you can switch back the same way. `dnf` shows what
+it will download (often 1 to 2 GB) and asks before installing.
+`termos-desktop check NAME` only checks that a desktop can be installed. GNOME,
+Budgie, Cinnamon and MATE get the TermOS wallpaper as their default.
+
+This works on the PC and ARM editions. The phone edition has Plasma Mobile only.
 
 ## Running apps from anywhere
 
@@ -445,6 +520,8 @@ these. It tests Anaconda's install engine, not the web UI's screens.
 ```
 bin/termos-fetch               fetch wrapper (matrix mode / termite mode)
 bin/termos-run                 run Windows, macOS, BSD, Nix, Ubuntu or Linux apps
+bin/termos-desktop             choose your desktop (GNOME, Xfce, Cinnamon, ...)
+branding/desktops/             TermOS wallpaper default for the other desktops
 branding/logo-matrix.txt       Matrix logo
 branding/logo-termite.txt      termite logo
 config/fastfetch/config.jsonc  fastfetch config using the Matrix logo
@@ -460,11 +537,13 @@ branding/fortune/termos        TermOS fortunes (easter egg)
 branding/make-art.py           generates the wallpaper, splash, GRUB and icon images
 iso/termos.ks.in               kickstart template for the live ISOs and the ARM board image
 iso/build-iso.sh               ISO and board image builder
+iso/flash-board.sh             write the board image to a card (with U-Boot for Orange Pi boards)
 phone/build-phone.sh           phone edition builder (Nura + Plasma Mobile)
 phone/devices.txt              the phones the phone edition is built for
 flake.nix                      Nix package, apps and dev shell
 docs/                          the GitHub Pages website
 tests/install-test.sh          install onto a virtual disk and boot it in QEMU
+tests/desktop-test.sh          check every termos-desktop desktop against Fedora
 Makefile                       install, iso, board, phone, lint and clean targets
 VERSION                        the TermOS version (0.1)
 CHANGELOG.md                   what changed in each release

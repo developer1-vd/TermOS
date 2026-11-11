@@ -247,12 +247,40 @@ sync
 
 # ---- Board image: use it as it is -------------------------------------------
 board_inspect() {
-    step "board image: copy $(basename "$src") to $(basename "$disk")"
+    # Write the image the way users do, with iso/flash-board.sh, and check
+    # that putting a board's U-Boot on the card can't damage the image:
+    #  - every Allwinner board's U-Boot (the Orange Pi boards) fits in the
+    #    gap before the first partition;
+    #  - a U-Boot that doesn't fit (Rockchip's) is refused, image intact;
+    #  - with an Orange Pi U-Boot written, everything from the first
+    #    partition on is unchanged. That disk is the one booted below.
+    local flash ref="$work/ref.bin" uboot_board=orangepi_zero2 big_board=orangepi-rk3399
+    flash="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/iso/flash-board.sh"
+    step "board image: flash-board.sh must refuse $big_board (U-Boot too big for the card)"
     rm -f "$disk"
-    case "$src" in
-        *.xz) xz -dc "$src" | dd of="$disk" bs=1M conv=sparse status=none ;;
-        *)    cp --sparse=always "$src" "$disk" ;;
-    esac
+    if "$flash" --yes "$src" "$disk" "$big_board" > "$work/flash.out" 2>&1; then
+        cat "$work/flash.out"; die "flash-board.sh wrote a U-Boot that overlaps the first partition"
+    fi
+    grep -q "would overwrite the first partition" "$work/flash.out" \
+        || { cat "$work/flash.out"; die "flash-board.sh failed for another reason"; }
+    # The image's first 64 MiB as flash-board.sh wrote them without a U-Boot.
+    head -c $((64 * 1024 * 1024)) "$disk" > "$ref"
+    step "board image: boards with U-Boot in the image"
+    "$flash" --list "$disk" | tee "$work/boards.txt" | sed 's/^/  /'
+    grep -q "^  $uboot_board\$" "$work/boards.txt" || die "no U-Boot for $uboot_board in the image"
+    if grep -E '^  [a-z0-9_]+ +\(too big' "$work/boards.txt" | grep -q orangepi_; then
+        die "an Allwinner Orange Pi U-Boot no longer fits before the first partition"
+    fi
+    step "board image: write it with the $uboot_board U-Boot"
+    "$flash" --yes "$src" "$disk" "$uboot_board" 2>&1 | grep '^flash-board' | sed 's/^/  /'
+    cmp <(head -c 8192 "$ref") <(head -c 8192 "$disk") \
+        || die "writing U-Boot changed the partition table"
+    cmp <(tail -c +$((1024 * 1024 + 1)) "$ref") <(head -c $((64 * 1024 * 1024)) "$disk" | tail -c +$((1024 * 1024 + 1))) \
+        || die "writing U-Boot changed data from the first partition on"
+    if cmp -s <(head -c $((1024 * 1024)) "$ref") <(head -c $((1024 * 1024)) "$disk"); then
+        die "no U-Boot was written"
+    fi
+    echo "install-test: U-Boot written; partition table and partitions unchanged"
     step "inspect: partitions and fstab"
     loop="$(losetup -fP --show "$disk")"
     partx -u "$loop" 2>/dev/null || true

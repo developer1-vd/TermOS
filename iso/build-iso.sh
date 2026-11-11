@@ -114,6 +114,10 @@ write_ks() {
     } >> "$ks"
     embed "$repo/bin/termos-fetch"                  /usr/bin/termos-fetch 0755
     embed "$repo/bin/termos-run"                    /usr/bin/termos-run 0755
+    # Desktop chooser, and the TermOS wallpaper for the desktops it installs.
+    embed "$repo/bin/termos-desktop"                /usr/bin/termos-desktop 0755
+    embed "$repo/branding/desktops/50-termos-wallpaper" \
+        /usr/share/termos/desktops/50-termos-wallpaper 0644
     embed "$repo/branding/logo-matrix.txt"          /usr/share/termos/logo-matrix.txt 0644
     embed "$repo/branding/logo-termite.txt"         /usr/share/termos/logo-termite.txt 0644
     embed "$repo/config/fastfetch/config.jsonc"     /usr/share/termos/fastfetch/config.jsonc 0644

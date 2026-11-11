@@ -1,0 +1,15 @@
+# TermOS wallpaper as the default for desktops that read dconf (GNOME,
+# Budgie, Cinnamon, MATE). Installed to /etc/dconf/db/local.d/ by
+# termos-desktop; users can still pick another wallpaper.
+[org/gnome/desktop/background]
+picture-uri='file:///usr/share/wallpapers/TermOS/contents/images/3840x2160.png'
+picture-uri-dark='file:///usr/share/wallpapers/TermOS/contents/images/3840x2160.png'
+
+[org/gnome/desktop/screensaver]
+picture-uri='file:///usr/share/wallpapers/TermOS/contents/images/3840x2160.png'
+
+[org/cinnamon/desktop/background]
+picture-uri='file:///usr/share/wallpapers/TermOS/contents/images/3840x2160.png'
+
+[org/mate/desktop/background]
+picture-filename='/usr/share/wallpapers/TermOS/contents/images/3840x2160.png'

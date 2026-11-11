@@ -17,6 +17,20 @@ jobs:
       - name: Lint
         run: make lint
 
+  # Every desktop termos-desktop offers must be a real Fedora group that
+  # installs cleanly (dnf only works out the transactions).
+  desktops:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the desktops against Fedora
+        run: |
+          # The Fedora release TermOS builds on (the default in build-iso.sh).
+          # shellcheck disable=SC2016
+          release="$(sed -n 's/^release="${TERMOS_RELEASE:-\([0-9]*\)}"$/\1/p' iso/build-iso.sh)"
+          docker run --rm -v "$PWD:/src:ro" "registry.fedoraproject.org/fedora:${release:-45}" \
+            /src/tests/desktop-test.sh
+
   nix:
     runs-on: ubuntu-24.04
     steps:
@@ -31,3 +45,4 @@ jobs:
         run: |
           ./result/bin/termos-fetch --version < /dev/null | grep -qx "TermOS $(cat VERSION)"
           ./result/bin/termos-run teapot | grep -q "418"
+          ./result/bin/termos-desktop | grep -q "xfce"
