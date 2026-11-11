@@ -192,6 +192,9 @@ done
 if grep -rqs '/dev/mapper/' /etc/fstab /boot/loader/entries /etc/kernel/cmdline; then
     echo "TermOS: ERROR: build-time device names left in fstab or the boot entries"
 fi
+# Hostname: the kickstart's network command doesn't set it in an image
+# build (the image came up as "fedora").
+echo termos > /etc/hostname
 # The boot menu was made on the build machine, where os-prober found that
 # machine's own systems. A board has none: turn os-prober off and remake it.
 echo 'GRUB_DISABLE_OS_PROBER=true' >> /etc/default/grub
