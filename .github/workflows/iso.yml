@@ -415,7 +415,7 @@ jobs:
             echo "| For | File |"
             echo "|---|---|"
             has "x86_64.iso" && echo "| PCs and laptops (x86-64), x86-64 boards such as the Radxa X4 | \`TermOS-$VERSION-x86_64.iso\` |"
-            has "aarch64.iso" && echo "| ARM64 with UEFI: Snapdragon laptops, ARM servers and VMs, boards with UEFI firmware (Radxa Dragon, Radxa Orion) | \`TermOS-$VERSION-aarch64.iso\` |"
+            has "aarch64.iso" && echo "| ARM64 with UEFI: Snapdragon laptops, ARM servers and VMs, boards with UEFI firmware (Radxa Dragon Q6A/Q8B, Radxa Orion); Qualcomm boards: pick the Qualcomm entry in the boot menu | \`TermOS-$VERSION-aarch64.iso\` |"
             has "aarch64-board" && echo "| ARM64 boards: Raspberry Pi 3/4/5, Radxa ROCK Pi 4 and other U-Boot boards | \`TermOS-$VERSION-aarch64-board.raw.xz\` |"
             has "phone-" && echo "| Phones (see the list below) | \`TermOS-$VERSION-phone-<codename>.tar.xz\` |"
             echo
